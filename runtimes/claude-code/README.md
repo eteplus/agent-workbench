@@ -1,6 +1,6 @@
 # Claude Code Adapter
 
-Claude Code 可以担任 Main Agent，由 Claude Opus 5.5 承担规划、决策、委派和验收。L2 实现及需要独立上下文的 Research / Review / Test 仍通过 Herdr → Pi 子 Agent 执行。
+Claude Code 当前会话担任 Main，规划、决策和验收；L2 代码实现与需要独立执行的 Research / Review / Test 通过 Herdr → Pi 子 Agent 完成。
 
 ## Install
 
@@ -9,29 +9,16 @@ pnpx skills add "$AGENT_WORKBENCH_ROOT/runtimes/claude-code" \
   --skill workflow --agent claude-code --global
 ```
 
-安装方式选择 **Symlink**。安装后调用：
+选择 Symlink 后使用 `/workflow <目标>`；源文件为 `workflow/SKILL.md`。
 
-```text
-/workflow <任务目标>
-```
+## 使用与续接
 
-Skill 源文件：`workflow/SKILL.md`。
+入口遵循 `core/workflow.md` §2：同一任务重复调用或恢复仍使用原 Task ID、产物根目录和决策。后续直接说“继续”即可；用户访谈与批准始终在 Main。
 
-## Skill Invocation
+Claude Code Skill 调用和 Herdr → Pi 单行 Contract 派发统一见 [`../README.md`](../README.md)；上游 Skill 的安装、前置条件和 bundled `code-review` 冲突见 [`../../skills/README.md`](../../skills/README.md)。用户显式调用型 Skill 需要用户手动输入命令，未指定时按 Core 执行。
 
-Claude Code 的 Skills 使用 `/skill-name` 显式调用。对于 `disable-model-invocation: true` 的上游 Skill，该命令必须由用户手动输入；Main 不得将 Skill Tool 自动调用视为可用路径。Core 中的逻辑 Skill 名称映射见 [`../README.md`](../README.md)。上游 `implement`、`grill-with-docs`、`retro` 设置该 frontmatter，只能由用户手动输入对应命令；手动触发后，它们可按 Claude Code 的 Skill Tool 调用各自依赖。未手动触发时，按 Core 内置流程继续。
+## Runtime 注意事项
 
-## Main Behavior
-
-- 当前 Claude Code 会话担任 Main；主控模型偏好为 Claude Opus 5.5，实际 Provider / Model ID 以当前会话可确认的信息为准。
-- L0/L1 按 Core 分类规则由 Main 直接处理。
-- L2 由 Main 规划并通过 Herdr 派发 Pi 子 Agent。
-- Claude Code 自带的 Agent / Task 能力不自动替代本 Workflow 指定的 Herdr → Pi 调度链；只有用户明确要求或 Runtime 适配规则明确允许时才改变调度方式。
-- Main 可由用户手动调用 `grill-with-docs`、`retro`；它们不是 Main 可自动触发的依赖。L2 Implementer 在 Pi Runtime 中运行；Main 通过 Herdr `agent prompt` 向 Pi 子 Agent 触发任意已安装 Skill 时，统一使用 `/skill:<name>`，例如 `/skill:implement <Issue / Spec URL>`、`/skill:ui-impl`。上游 `implement` 仍受 Spec / Ticket、Tracker 和 fixed point 前置条件限制；其内部 `tdd` / `code-review` 调用须单独核验，第三方 `code-review` 受 Tracker 前置条件限制。
-- 子 Agent 必须自行加载 Task Contract 指定的 Skills；Main 加载的 Skill 不自动传递。
-- `REQUIRED` Developer Review 必须等待开发者明确确认后才能最终 PASS。
-- 不在 Adapter 中复制模型表、权限矩阵、修复轮数或验收条件。
-
-## Capability Notes
-
-Claude Code 的当前模型、可调用工具和 Skill 发现由当前会话及安装配置决定。Main 记录实际可确认的模型信息；Pi 的 Thinking Level 参数不直接用于控制 Claude Code。
+- Main 记录当前会话实际可核实的模型信息；Pi 的 Thinking 参数不直接控制 Claude Code。
+- Claude Code Agent / Task 能力不自动替代 Core 指定的 Herdr → Pi 委派；只有用户明确要求或 Adapter 明确允许时改变路径。
+- 两个 Main Runtime 使用同一套产物、授权和验收规则；Adapter 不重复维护模型表、权限矩阵或修复轮数。

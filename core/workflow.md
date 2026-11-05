@@ -17,7 +17,7 @@ Main Agent / Orchestrator 对任务理解、风险分级、方案决策、子 Ag
 - 为 L2 任务维护 `overview.md`，追踪实质性决策，并确保 Handoff 能解释关键实现。
 - 按风险准备 Developer Review；需要人工确认时提供任务总览和证据入口，等待明确反馈后完成最终 Acceptance。
 
-Main Runtime 可以是 Claude Code 或 Pi。Main Model 按 `model-routing.md` §1 中对应 Runtime 的模型范围选择：Claude Code 使用 Claude Opus 5.5；Pi 可使用 Claude Opus 5.5 或 GPT-6.1 Sol。Runtime 与模型偏好分别配置，模型选择遵循当前 Runtime 的支持范围。
+Main Runtime 可以是 Claude Code 或 Pi。Runtime 与模型偏好分别配置；Main 模型偏好和档位以 `core/model-routing.md` §1 为准，实际选择遵循当前 Runtime 的支持范围。
 
 ### 指令优先级
 
@@ -29,33 +29,47 @@ Main Runtime 可以是 Claude Code 或 Pi。Main Model 按 `model-routing.md` §
 
 发生冲突时，暂停冲突部分并向用户说明；用户明确要求的流程优先于本 Workflow 中可配置的流程约定。
 
-## 2. 每次任务的启动流程
+## 2. 任务启动与续接
+
+一次 Workflow 是一个任务生命周期，不是一次入口命令调用。Main 先判断当前请求：
+
+- 同一任务的继续、阶段切换、再次调用入口或会话恢复：沿用 Task ID、产物根目录、当前阶段和已确认决策；从当前上下文或 `overview.md` 恢复，不重新 Intake。
+- 当前目标的调整：只更新受影响的范围、决策、计划和验收；超出授权时先确认。
+- 独立目标：建立新任务，不共用其他 Workflow 的产物根目录；无法确定归属时只澄清该歧义。
+
+同一会话已读取且仍适用的 Core 不重复加载；恢复后缺少规则或规则已变更时读取对应文件。新任务按以下顺序启动：
 
 1. 读取本文件，确认 Main 职责和总流程。
-2. 读取 `task-classification.md`，判定任务类型和级别。
-3. 读取 `permissions.md`，确认当前工作区、授权范围和副作用边界。
-4. 按任务需要读取 `model-routing.md`、`task-contract.md` 和 `acceptance.md`。
-5. 需要仓库检索时，将 `references/code-retrieval.md` 传给执行检索的 Agent。
-6. 只有满足补充 Review 条件时，才加载 `references/review-escalation.md`。
+2. 读取 `core/task-classification.md`，判定任务类型和级别。
+3. 读取 `core/permissions.md`，确认当前工作区、授权范围和副作用边界。
+4. 按任务需要读取 `core/model-routing.md`、`core/task-contract.md` 和 `core/acceptance.md`。
+5. 需要仓库检索时，将 `core/references/code-retrieval.md` 传给执行检索的 Agent。
+6. 只有满足补充 Review 条件时，才加载 `core/references/review-escalation.md`。
 7. 按任务类型执行必要阶段，不创建无关阶段。
 
-Main 只维护轻量运行状态：`Current Stage`、`Next Step`、`Blockers`。子 Agent 只接收当前任务所需的规则，不全量注入所有 Core 文档和无关历史。子 Agent 必须自行加载 Contract 指定的 Skill；Main 的 Skill 加载状态不继承给子 Agent。
+Main 在任务开始、阶段切换或阻塞时向用户简报；授权范围内的常规推进不重复索要确认。用户可直接说“继续”或调整目标，无需逐阶段调用命令。每次续接先核对当前授权与实际工作区，结束时同步 `overview.md` 顶部当前状态和历史记录，字段与归属见 `core/task-contract.md` §6。
+
+子 Agent 只接收当前任务所需的规则、输入和明确交付路径。Core 与 Task Contract 是默认执行路径；Skill 按用户指定或专项能力需要加载，调用机制和失败处理见 `task-contract.md`，语法由 Runtime Adapter 映射。
 
 ## 3. Intake、Research、Clarify 与 Plan
 
 ### Intake
 
-开始时明确目标、任务类型与级别、交付物、范围与非目标、验收标准、依赖、风险、仓库和工作区边界。L2 任务在 `.agents/workflow/tasks/<task-id>/overview.md` 建立总览。检查相关 `AGENTS.md`、项目规范和已确认决策；只读取与当前任务有关的内容。
+开始时明确目标、任务类型与级别、交付物、范围与非目标、验收标准、依赖、风险、仓库和工作区边界。L2 任务在 `.agents/workflow/tasks/<task-id>/overview.md` 建立总览。检查相关 `AGENTS.md`、项目规范和已确认决策；只调查到足以分级、定范围和写 Contract。完整消费调查由执行 Agent 交付，Reviewer 独立核验，Main 验收时定向检查关键证据。
 
 ### Research
 
-按需启动 Repo Researcher 或 Web Researcher。内部与外部调研可以并行，但使用独立 Task ID 和交付路径。Research 结论区分事实、推断和待确认事项，并提供文件位置、符号、行号或来源链接。项目代码检索遵循 `references/code-retrieval.md`。
+按需启动 Repo Researcher 或 Web Researcher。内部与外部调研可以并行，使用同一任务根目录下不同交付路径；需要更细划分时使用 `subtasks/`。Research 结论区分事实、推断和待确认事项，并提供文件位置、符号、行号或来源链接。项目代码检索遵循 `core/references/code-retrieval.md`。
 
 ### Clarify
 
 当歧义会实质影响行为、范围、兼容性、数据或验收时才询问用户；先通过会话、代码、文档和已确认决策解决可自行查明的问题。
 
-存在重要业务歧义或用户明确要求深入澄清时，`grill-with-docs` 可作为可选访谈辅助 Skill。上游设置 `disable-model-invocation: true`，表示模型不能自主选择或通过 Skill Tool 自动调用；Claude Code Main 需要由用户显式输入 `/grill-with-docs`。若由 Herdr 向 Pi 子 Agent 显式触发任意已安装 Skill，统一在 `agent prompt` 消息开头使用 `/skill:<name>`，例如 `/skill:grill-with-docs`。该命令负责加载 parent Skill；其正文中若继续调用 `grilling`、`domain-modeling` 等嵌套 Skill，仍需确认相应调用机制和依赖是否可用。Pi Main 默认按本节定义的 Core Clarify 流程执行，除非已明确安排可运行该 Skill 及依赖的执行路径。适用情况包括：不同理解导致明显不同用户行为或验收、领域术语和规则无法从项目资料确认、关键架构/产品选择需要用户权衡。Main 控制问题数量和范围；每个问题说明歧义、选项及影响，证据充分时提供推荐。用户确认后，将决策写入 `decisions.md`，必要时同步 `plan.md`。L2 任务出现实质性产品、交互、架构、接口、数据、安全、兼容性或性能决策时，必须维护 `decisions.md`；Agent 新提出的实质性选择先记录来源、选项和取舍，再由 Main 判断是否需要用户确认。未经确认的假设须标记并限制影响范围。
+需要用户回答、决策或批准的交互始终在 Main 会话进行。子 Agent 发现新歧义时，将问题、证据、选项和建议报告 Main；Main 负责提问、接收回答和记录来源，不委派用户访谈。
+
+重要业务歧义或用户要求深入澄清时，可在 Main 使用 `grilling` / `grill-with-docs` 等辅助 Skill；使用前按 `runtimes/README.md` 的 Skill 调用规则及 `skills/README.md` 的前置条件核验，不可用时按 Task Contract 的 REQUIRED / OPTIONAL 规则处理。Expert 只在重大架构或专业风险需要时提供独立分析，不是访谈的固定前置步骤，也不承载用户交互。
+
+Main 按已解决的前置决策提问；每个问题说明歧义、选项、影响和有证据的推荐，不把事实调查交给用户。确认范围和批准来源遵循 `permissions.md`。用户确认后，由 Main 将实质性决策写入 `decisions.md`，必要时同步 `plan.md`。未经确认的假设标记为待确认，并暂停依赖该决策的工作。
 
 ### Plan
 
@@ -87,7 +101,7 @@ L0/L1 和纯 Research / Plan / Review / Test 任务按 `task-classification.md` 
 | Developer Review | 按 `acceptance.md` 判断是否需要开发者确认；提供任务总览、决策、关键 Diff 和验证证据 | REQUIRED 项获得明确确认，或暂停等待 |
 | Acceptance | Main 对照用户目标和证据完成最终验收 | PASS / BLOCKED / NEEDS USER DECISION / NEEDS DEVELOPER REVIEW |
 | Knowledge Update | 识别可沉淀的 ADR、项目文档、AGENTS.md 或 Skill 更新 | 长期知识按授权更新，任务目录保留追溯链接 |
-| Retro | 发生重复失败、成本异常、并行冲突或质量缺口时复盘；Claude Code Main 可由用户手动调用上游 `retro`；Pi Main 默认按 Core Retro 规则执行，未手动触发或上游依赖不兼容时不等待第三方 Skill | 可复用的改进项 |
+| Retro | 发生重复失败、成本异常、并行冲突或质量缺口时，按 `acceptance.md` §11 执行必要复盘；可选 Skill 的前置条件与依赖见 `skills/README.md` | 可复用的改进项 |
 
 Debug 任务先完成复现和根因诊断；仅诊断时，以 `debug-report.md` 验收后结束。需要修复时，再按 L0/L1/L2 分级进入对应实现流程；L2 修复必须执行 Implement、Handoff、Test、Primary Review 和 Gate。纯 Research、Plan、Review 或 Test 任务只执行完成目标所需阶段。Visual Implementation 沿用普通实施阶段，并增加浏览器截图和视觉比较。
 
@@ -96,7 +110,8 @@ Debug 任务先完成复现和根因诊断；仅诊断时，以 `debug-report.md
 - L0/L1 由 Main 按 `task-classification.md` 直接处理。
 - L2 代码实现由 Herdr → Pi Implementer 执行，Main 不直接实现 L2 业务代码。
 - 独立 Research、Debug 诊断、Review、Test 根据任务需要通过 Herdr 启动 Pi 子 Agent；Debug 诊断默认只读。若诊断任务需要代码修复，按修复任务的 L0/L1/L2 规则执行。
-- 委派时使用 `task-contract.md` 定义的协议。每次只传入本次任务需要的信息。
+- 委派时使用 `task-contract.md` 定义的协议。每次只传入本次任务需要的信息；子任务沿用 Workflow Task ID，以独立 Subtask ID 区分执行，产物仍在同一个任务根目录。
+- 结构化 Agent 状态只用于协调；报告、实际 Diff 和检查结果用于验收。产物缺失、状态矛盾或 Skill 加载异常时，定向读取对应 Session 记录；TUI 屏幕仅用于终端故障诊断。
 - Herdr 的 Agent/Pane 创建、启动、等待和结果读取方式以当前安装版本实际提供的 CLI、MCP 或工具 Schema 为准。调用前读取当前帮助或工具描述，不从旧示例推断参数。
 - Main 对子 Agent 的调度结果、代码和报告进行独立验收。Herdr 显示的运行状态和子 Agent 自报 `DONE` 均不能替代验收。
 
@@ -114,18 +129,18 @@ Debug 任务先完成复现和根因诊断；仅诊断时，以 `debug-report.md
 
 | 场景 | 加载内容 |
 |---|---|
-| 所有任务 | `workflow.md`、`task-classification.md`、`permissions.md` |
-| 需要选模型或委派 | `model-routing.md`、`task-contract.md` |
-| 代码实现 / Review / Test / Gate / Developer Review | `task-contract.md`、`acceptance.md` |
-| 项目内部代码检索 | `references/code-retrieval.md` |
-| Secondary Review / Escalation | `references/review-escalation.md` |
+| 所有任务 | `core/workflow.md`、`core/task-classification.md`、`core/permissions.md` |
+| 需要选模型或委派 | `core/model-routing.md`、`core/task-contract.md` |
+| 代码实现 / Review / Test / Gate / Developer Review | `core/task-contract.md`、`core/acceptance.md` |
+| 项目内部代码检索 | `core/references/code-retrieval.md` |
+| Secondary Review / Escalation | `core/references/review-escalation.md` |
 | Visual Implementation | 执行 Agent 加载 `skills/ui-impl/SKILL.md` |
 
-文档路径以 `AGENT_WORKBENCH_ROOT` 为仓库根目录。Runtime 入口应先解析该环境变量，再读取对应文件。Core 中引用 Skill 时使用逻辑名称；调用语法由 Runtime Adapter 负责映射。环境变量缺失或路径无效时，报告配置问题并请求修复；不得猜测仓库路径。
+加载表与委派 References 使用相对于 `AGENT_WORKBENCH_ROOT` 的路径；Core 正文中的同目录短名称相对于所在文档。Runtime 入口应先解析该环境变量，再读取对应文件。Core 中引用 Skill 时使用逻辑名称；调用语法由 Runtime Adapter 负责映射。环境变量缺失或路径无效时，报告配置问题并请求修复；不得猜测仓库路径。
 
 ## 8. 产物与状态
 
-默认产物目录：`.agents/workflow/tasks/<task-id>/`。所有 L2 任务必须创建 `overview.md`；出现实质性决策时创建 `decisions.md`；L2 实现任务的 `handoff.md` 必须包含 Implementation Walkthrough。其他产物按阶段创建，未触发的阶段无需创建。模板位于 `core/templates/`，完整字段和状态定义见 `task-contract.md`。
+产物生命周期、单任务根目录、`subtasks/`、写入归属和本地保存方式以 `task-contract.md` §5–6 为准。所有 L2 任务创建 `overview.md`；其他产物仅在阶段需要时创建，未触发阶段不生成空报告。总览与交接分别使用 `core/templates/overview.template.md`、`core/templates/handoff.template.md`。
 
 子 Agent 状态：
 

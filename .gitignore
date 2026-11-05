@@ -1,5 +1,9 @@
+# Mixed
 .DS_Store
 Thumbs.db
 *.swp
 *.swo
 *~
+
+# Workflow
+.agents/workflow/*

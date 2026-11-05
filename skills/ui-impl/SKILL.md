@@ -163,10 +163,10 @@ agent-browser wait --load domcontentloaded
 agent-browser snapshot -i
 
 # Save a screenshot under the task artifact directory defined by the Workflow
-agent-browser screenshot .agents/workflow/tasks/<task-id>/screenshots/iteration-1.png
+agent-browser screenshot "<absolute screenshot path supplied in Task Contract>"
 ```
 
-Adapt the URL, viewport, scale, waits, and output path to the task contract. Follow the installed `agent-browser` version for exact command options and host-specific tool schemas.
+Adapt the URL, viewport, scale, and waits to the task contract; use its exact absolute screenshot output path. Follow the installed `agent-browser` version for exact command options and host-specific tool schemas.
 
 Browser operation guidelines:
 
@@ -310,10 +310,10 @@ A visually accurate static screenshot does not prove that the component's behavi
 
 Write all visual artifacts to the task artifact directory defined by the Workflow and supplied in the Task Contract.
 
-The default directory is:
+The task owner supplies an absolute Task Root; its layout is:
 
 ```text
-.agents/workflow/tasks/<task-id>/
+<Task Root>/
 ├── visual-report.md
 └── screenshots/
     ├── iteration-1.png

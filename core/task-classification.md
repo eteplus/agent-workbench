@@ -40,7 +40,7 @@ Visual Implementation 是 Implement 的专项类型，适用于以截图、设�
 
 | Task Type | Required Flow |
 |---|---|
-| Implementation | Intake → Research（按需）→ Clarify（按需）→ Plan → Implement → Handoff → Test / Review → Gate → Acceptance |
+| Implement | Intake → Research（按需）→ Clarify（按需）→ Plan → Implement → Handoff → Test / Review → Gate → Acceptance |
 | Visual Implementation | Intake → Research（按需）→ Clarify（按需）→ Plan → Implement + Browser Verification → Handoff → Test / Review → Gate → Acceptance |
 | Research | Intake → Research → Acceptance |
 | Plan / Architecture | Intake → Research（按需）→ Clarify（按需）→ Plan → Acceptance |
@@ -49,10 +49,12 @@ Visual Implementation 是 Implement 的专项类型，适用于以截图、设�
 | Debug（仅诊断） | Intake → Research（按需）→ Debug / Reproduction → Debug Report → Acceptance |
 | Debug（包含修复） | Intake → Research（按需）→ Debug / Reproduction → 按修复级别执行 Implement / Handoff / Test / Review / Gate → Acceptance |
 | Documentation | Intake → Research（按需）→ Implement → Test（按需）→ Acceptance |
-| Issue / Ticket | Intake → Research（按需）→ Clarify（按需）→ Plan / Implement → Read-back Verification → Acceptance |
+| Issue / Ticket | Intake → Research（按需）→ Clarify（按需）→ Plan / External Write → Read-back Verification → Acceptance |
 | Mixed | 根据复合目标组合上述最小必要阶段；每个子目标明确交付物和验收标准 |
 
 本表中的 Required Flow 表示各 Task Type 的基础执行阶段。L2 的 `overview.md`、Workspace Baseline、实质性 `decisions.md`、Developer Review 和 Knowledge Update 是横向机制，按 `workflow.md`、`task-contract.md` 与 `acceptance.md` 的条件执行，不在每一行重复展开。纯 Research / Plan / Review / Test 等非实现任务，也应按本表只执行与目标直接相关的阶段；其中 `overview.md` 仍适用于所有 L2 任务。
+
+Issue / Ticket 流程用于工作项的创建、更新等外部操作；外部写入授权与回读遵循 `permissions.md` §3。以 Issue 为需求来源的代码实施按 Implement 或 Mixed 分级执行，不以需求来源替代交付类型。
 
 只执行完成任务所需的阶段。纯 Research、Plan、Review 或 Test 任务委派对应 Agent，不额外创建无关阶段。
 

@@ -22,7 +22,7 @@ Pi ──────────┘         │
 ```
 
 - **Core**：任务分级、模型路由、权限、Task Contract、Review、Gate 与验收的唯一规则来源。
-- **Runtimes**：Claude Code Skill 与 Pi Prompt Template，共用 `/workflow` 入口，并适配各自的 Skill 调用方式。
+- **Runtimes**：Claude Code Skill 与 Pi Prompt Template，共用 `/workflow` 启动 / 续接入口；调用语法只在 Adapter 定义。
 - **Herdr → Pi**：Main 管理 Pane、启动 Pi 子 Agent、传递任务并收集结果。
 - **Skills**：维护个人 Skill，并通过 Skills CLI 同步到 Agent Runtime。
 
@@ -35,7 +35,7 @@ Pi ──────────┘         │
 | Orchestration | Herdr | 必需；管理 Pane、启动和控制 Pi Agent |
 | Model Access | Main 与 Pi 可用的模型 / Provider 凭据 | 必需；具体模型偏好见 `core/model-routing.md` |
 | Skill Manager | Node.js / pnpm / `pnpx skills` | 安装和同步 Skills 时需要；具体安装方式见 `skills/README.md` |
-| Engineering Skills | `mattpocock/skills` 指定 Skills | 按 Runtime 分流：Pi 默认安装 TDD / 设计辅助；Claude Code Main 可由用户显式调用澄清 / 复盘 Skills；Pi Main 使用 Core 内置流程；`implement` / `code-review` 默认不安装，仅满足前置条件并明确选择试用时才按需安装到 Pi；用户显式调用型 Skill 不会被模型自动触发 |
+| Engineering Skills | `mattpocock/skills` 指定 Skills | 按 Runtime 分流：Pi 默认安装 TDD / 设计辅助；Claude Code Main 可由用户显式调用澄清 / 复盘 Skills；Pi Main 默认使用 Core 内置流程，可选专项 Skill 按 `skills/README.md` 安装与核验；`implement` / `code-review` 默认不安装，仅满足前置条件并明确选择试用时才按需安装到 Pi；用户显式调用型 Skill 不会被模型自动触发 |
 | Issue Tracker | 项目 Tracker 配置 | 上游 `code-review` 需要；`implement` 传入 Ticket 引用或使用其内部 `code-review` 时需要。未配置时使用 Core 实现与 Review 流程 |
 | Visual Tooling | `ui-impl`、agent-browser、图片理解能力 | 仅视觉实现任务需要 |
 | Code Retrieval | `@colbymchenry/codegraph` | 可选；不可用时使用 `rg` / `fd` / Read |
@@ -84,11 +84,13 @@ pnpx skills add "$AGENT_WORKBENCH_ROOT/skills" \
 - Claude Code：`/workflow <任务目标>`
 - Pi：`/workflow <任务目标>`
 
-Main 按风险选择 L0/L1 或 L2 流程。L2 代码实现，以及需要独立上下文的 Research、Review、Test，通过 Herdr 委派 Pi 子 Agent。
+Main 按风险选择最小必要流程。后续直接说“继续”或调整目标；同一任务重复 `/workflow` 或恢复会话仍沿用 Task ID、阶段和决策，不重新启动。访谈和批准留在 Main，L2 代码实现及独立 Research / Review / Test 通过 Herdr → Pi 执行。Skill 是按需辅助，不另起工作流。
 
 ## 任务审阅
 
-每个 L2 任务在项目内生成 `.agents/workflow/tasks/<task-id>/overview.md`。从这里查看目标、状态、关键文件、决策索引、验证结论和审阅入口，再按需查看：
+每个 Workflow 任务只有一个本地产物根目录 `.agents/workflow/tasks/<task-id>/`；同一任务续接沿用，独立任务不共用。细分执行放在该目录的 `subtasks/<id>/`，不另建顶层 task 目录；按需创建报告，每个文件一个写入负责人。
+
+所有 L2 任务以 `overview.md` 为导航，查看目标、状态、关键文件、决策索引、验证结论与子任务入口，再按需查看：
 
 - `decisions.md`：实质性选择、来源、责任人、理由、取舍和确认状态。
 - `plan.md`：实施范围、步骤、契约、风险和回滚方案（按条件生成）。
@@ -97,7 +99,11 @@ Main 按风险选择 L0/L1 或 L2 流程。L2 代码实现，以及需要独立�
 - `workspace-baseline/`（仅存在授权重叠路径时）：用于区分任务前已有修改与本次实现。
 - Git Diff 与源码：核对实际变更和证据。
 
-高影响任务会按条件进入 Developer Review；产品/领域决策需由相应业务责任人单独确认。两类确认和最终 Gate 见 [`core/acceptance.md`](core/acceptance.md)。
+任务报告、派发上下文和检查输出仅作本地 Agent 上下文，默认不纳入提交。若项目没有忽略该目录，建议在项目本地 `.git/info/exclude` 添加 `.agents/workflow/tasks/`；不必修改团队共享 `.gitignore`，提交前仍检查暂存范围。已经跟踪的文件不受 ignore 规则影响，处理它们需单独授权。
+
+长期知识从任务结论中提炼：架构取舍写 ADR，使用、接口和排障知识更新对应文档；仅在当前授权内执行，不复制全部过程报告。历史产物不自动清理。
+
+同一轮明确列出的同类问题可批量确认，但设计确认、Developer Review 与外部写入授权不混同。高影响任务按条件进入 Developer Review；两类确认和最终 Gate 见 [`core/acceptance.md`](core/acceptance.md)。
 
 ## 文档导航
 
@@ -117,6 +123,14 @@ Main 按风险选择 L0/L1 或 L2 流程。L2 代码实现，以及需要独立�
 ## 维护原则
 
 Core 规则只在对应权威文件中维护；Runtime Adapter 负责加载规则和映射调用方式；Skill 只承载专项能力。修改规则时先更新唯一权威文件，再检查入口、模板和引用。
+
+使用 Node.js 22+ 运行 `node --test scripts/check-workflow.mjs` 检查文档链接与关键规则；行为验证按 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md) 执行，静态通过不代表 Runtime 已验证。
+
+## License
+
+本项目的自有代码、工作流规则、模板和文档采用 [MIT License](LICENSE)。允许商业使用、修改和分发；分发副本或实质性内容时须保留版权声明与许可声明。
+
+第三方 Skills、工具和依赖适用各自的许可证，本项目的 MIT License 不改变它们的授权条件。使用本工作流不会自动改变目标项目的许可证。
 
 ## 参考资料
 

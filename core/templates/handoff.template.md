@@ -1,8 +1,11 @@
 # Implementation Handoff
 
 ## Status
+- Task ID / Subtask ID:
+- Task Root (absolute):
 - Status: DONE / PARTIAL / BLOCKED / FAILED
 - Actual Provider / Model ID / Thinking:
+- Metadata Evidence: <own Pi Shell variables / RPC state / NOT VERIFIED with reason>
 - Changed Files:
 - Base Diff / Commit:
 - Workspace Baseline / Overlap Handling:
@@ -12,9 +15,9 @@
 
 记录 Task Contract 指定的 Skill 是否安装、如何显式触发、parent 是否实际加载，以及嵌套依赖是否真正执行。没有指定 Skill 时填写 `None`。
 
-| Skill | Invocation Policy | Installed in Target Runtime | Parent Loaded | Execution Result | Evidence / Notes |
-|---|---|---|---|---|---|
-| `<skill-name>` | `HERDR_EXPLICIT_COMMAND` / `USER_COMMAND` / `RUNTIME_AUTO` / `CORE_FALLBACK` | YES / NO / UNKNOWN | YES / NO / N/A | SUCCESS / FAILED / SKIPPED / UNSUPPORTED / NOT VERIFIED | |
+| Skill | Requirement | Invocation Policy | Installed | Loaded | Execution Result | Evidence / Notes |
+|---|---|---|---|---|---|---|
+| `<skill-name>` | REQUIRED / OPTIONAL | `HERDR_EXPLICIT_COMMAND` / `USER_COMMAND` / `RUNTIME_AUTO` / `CORE_FALLBACK` | YES / NO / UNKNOWN | YES / NO / N/A | SUCCESS / FAILED / SKIPPED / UNSUPPORTED / NOT VERIFIED | |
 
 - Nested dependencies invoked / executed:
 - Missing or unsupported dependencies:
@@ -51,7 +54,12 @@
 - Compatibility / Migration:
 - Security / Permission:
 
+## Additional Writes
+- Manual write paths outside implementation / designated reports: None / absolute paths + purpose + authorization
+- Validation-generated output locations: <as permitted in Contract Constraints>
+
 ## Verification
+- Reused checks / scope / reason: None / existing evidence + unaffected scope
 | Command / Check | Result | Evidence / Notes |
 |---|---|---|
 | | | |

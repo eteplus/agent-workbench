@@ -1,12 +1,20 @@
 # Task Overview
 
-> 本文件是本次任务的导航和审阅摘要。保持简洁，链接到详细产物和证据，不复制完整报告。
+> 顶部 Status 是唯一当前状态入口；其他章节提供摘要或历史证据，不重复当前授权和下一步。续接后同步顶部，历史记录遵循 core/task-contract.md §6。
 
 ## Status
 - Task ID:
+- Task Root (absolute):
+- Repository Root (absolute):
+- Local Artifact Storage: ignored / not ignored (explain; not part of submission)
 - Type / Level:
-- Main Runtime / Model:
+- Current Main Runtime / Provider / Model / Thinking:
+- Current Authorization / Source:
+- Committed Changes: None / commit + scope
+- External Operation Result: None / target + verified result
 - Current Stage:
+- Next Step:
+- Blockers:
 - Verdict: IN PROGRESS / PASS / BLOCKED / NEEDS USER DECISION / NEEDS DEVELOPER REVIEW
 - Developer Review Requirement: REQUIRED / RECOMMENDED / NOT REQUIRED
 - Developer Review Status: PENDING / APPROVED / CHANGES REQUESTED / CLARIFICATION REQUIRED / SKIPPED / N/A
@@ -27,18 +35,27 @@
 - Original Goal:
 - Scope / Non-goals:
 - Acceptance Criteria:
-- User Constraints / Confirmed Decisions:
+- Confirmed Decisions / Evidence:
+
+## Execution History
+仅记录授权、模型切换、提交、外部结果和报告写入权移交等变更事件；引用具体会话回答或工具结果，历史不替代当前授权。
+
+| Time | Event / Scope | Evidence |
+|---|---|---|
+| | | |
 
 ## Participants
-| Role | Runtime / Model | Responsibility | Result |
-|---|---|---|---|
-| Main / Planner | | | |
-| Researcher | | | |
-| Implementer | | | |
-| Reviewer | | | |
-| Tester | | | |
+| Role / Stage | Runtime / Model at execution | Subtask ID / Contract | Owned Deliverables | Result |
+|---|---|---|---|---|
+| Main / Planner | | | `overview.md`, `decisions.md`, final plan | |
+| Researcher | | | | |
+| Implementer | | | | |
+| Reviewer | | | | |
+| Tester | | | | |
 
 ## Artifact Index
+仅保留实际需要的行；子任务链接到同一 Task Root 的 `subtasks/<id>/`，不创建空报告。
+
 | Artifact | Path | Status / Notes |
 |---|---|---|
 | Workspace Baseline Snapshot | `workspace-baseline/` | N/A / path (only when an overlapping dirty path is explicitly authorized) |
@@ -89,13 +106,14 @@
 - Decisions requiring attention:
 - Review questions:
 - Review scope (base commit / changed paths):
-- Approval status / evidence:
+- Approval status / Main answer or designated external evidence:
+- Approval kind / presented scope:
 
-## Open Risks & Next Steps
+## Open Risks
 - Unresolved assumptions:
 - Deferred decisions:
 - Known risks / technical debt:
-- Recommended next steps:
+- Out-of-scope writes / resolution evidence: None / paths + impact + disposition
 
 ## Knowledge Update Candidates
 - ADR / architecture documentation:

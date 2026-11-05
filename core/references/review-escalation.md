@@ -47,7 +47,7 @@ Secondary Review 未覆盖完整 Diff 时标记 `INCOMPLETE`，记录已覆盖�
 
 ## 5. Targeted Reviewer Escalation
 
-只有 `core/model-routing.md` 定义的高影响争议条件成立时，才启动定向 Reviewer Escalation。默认目标模型偏好为 Claude Sonnet 5.5；所有 Reviewer 的实际模型家族必须与 Implementer 不同。若 Implementer 实际使用 Claude 模型家族，按 `model-routing.md` 改选 GLM-5.3 Flash 或 GPT-6 Luna；不得为了保留默认模型而违反跨家族约束。
+只有 `core/model-routing.md` 定义的高影响争议条件成立时，才启动定向 Reviewer Escalation；默认模型、跨家族回退和参与者去重均按该文件选择。所有 Reviewer 的实际模型家族必须与 Implementer 不同，不得为了保留默认模型而违反该约束。
 
 输入限定为：
 - 争议 Finding 及其文件、行号和复现/触发条件。
@@ -58,7 +58,7 @@ Secondary Review 未覆盖完整 Diff 时标记 `INCOMPLETE`，记录已覆盖�
 
 要求 Escalation Reviewer 对每项争议给出：结论、证据、影响、置信限制和建议验证方式。它只执行定向裁决，不重新扫描整个仓库，也不替代 Main Agent 最终决策。
 
-若首选的不同家族模型不可用，按 `core/model-routing.md` 选择尚未参与当前争议的其他不同家族模型。若 Luna 与 GLM 已分别作为 Primary / Secondary 参与当前分歧，或没有其他可用的不同家族 Reviewer，Main 不重复委派已参与的 Reviewer，也不启动同家族 Review；由 Main 基于原始需求、源码、Diff、测试及双方证据直接裁决并记录限制。仍无法形成有证据的结论时，未解决的 P0/P1 保持 `BLOCKED`。
+首选模型不可用时，按 `core/model-routing.md` 的跨家族回退与参与者去重规则处理。没有可用的独立 Reviewer 时，由 Main 基于原始需求、源码、Diff、测试及双方证据直接裁决并记录限制。仍无法形成有证据的结论时，未解决的 P0/P1 保持 `BLOCKED`。
 
 ## 6. Repair and Re-review
 

@@ -7,7 +7,8 @@
 - 子 Agent 仅接收本次任务相关的需求、规范、Task Contract、Skill 和 References，不全量注入 Main Workflow 或无关历史。
 - 每次委派填写以下字段；确实不适用时标记 `N/A`。L2 任务还必须遵循本文件定义的任务总览、决策记录和 Handoff 规范。
 - `Agent Role` 表示本次执行者职责；`Task Type` 使用 `task-classification.md` 的完整枚举。不要将阶段名称误填为 Agent Role。
-- `Skills` 字段必须注明 Skill 是否已安装、调用策略及加载结果。调用策略使用 `HERDR_EXPLICIT_COMMAND`（Main 通过 Herdr `agent prompt` 前缀命令触发；目标为 Pi Agent 时统一使用 `/skill:<name>`）、`USER_COMMAND`（用户在 Main Runtime 显式输入，按 Runtime 语法映射）、`RUNTIME_AUTO`（当前 Runtime 明确允许模型自动调用）或 `CORE_FALLBACK`（Skill 不可用时使用 Core 流程）。`disable-model-invocation: true` 的 Skill 不得标为 `RUNTIME_AUTO`；Herdr 显式命令不受该字段限制，但目标 Pi Agent 必须已安装该 Skill。
+- 默认按 Core 和本次 Contract 执行；仅用户指定或专项能力需要时使用 Skill。`Skills` 注明 REQUIRED / OPTIONAL、是否安装、调用策略、加载结果及必要依赖。策略为 `HERDR_EXPLICIT_COMMAND`、`USER_COMMAND`、`RUNTIME_AUTO` 或 `CORE_FALLBACK`（仅 OPTIONAL 或未指定 Skill 的 Core 默认路径）；REQUIRED 不得使用 CORE_FALLBACK。语法与支持能力见 `runtimes/README.md`。`disable-model-invocation: true` 不得标为 `RUNTIME_AUTO`。
+- REQUIRED Skill 或必要依赖缺失、未展开或不可执行时，子 Agent 停止依赖该能力的工作并报告 Main；Main 重新安排支持的执行路径或请求变更要求，不静默降级。OPTIONAL 不可用时记录原因，按 Core 继续。parent 加载成功不代表嵌套依赖执行成功。
 - References 路径相对于 `AGENT_WORKBENCH_ROOT` 解析。
 - 委派前，Main 确认子 Agent 能访问指定文件；无法访问时，Main 将相关规则摘要或必要片段写入 Context。
 - 执行所需 Skill 必须由实际执行的子 Agent 加载；Main 已加载的 Skill 不代表子 Agent 自动继承。
@@ -16,12 +17,15 @@
 ## 2. Task Contract Template
 
 ```text
-Task ID: <唯一任务标识>
+Task ID: <Workflow 唯一任务标识；所有子任务沿用>
+Subtask ID: <当前委派标识；无则 N/A>
+Task Root: <该 Workflow 产物根目录的绝对路径>
+Repository Root: <当前项目仓库根目录的绝对路径；与 Task Root、AGENT_WORKBENCH_ROOT 区分>
 Agent Role: <Main / Planner | Repo Researcher | Web Researcher | Implementer | Primary Reviewer | Secondary Reviewer | Reviewer Escalation | Tester | Expert>
 Task Type: <Research | Plan / Architecture | Implement | Visual Implementation | Review | Test | Debug | Documentation | Issue / Ticket | Mixed>
 Goal: <明确目标和预期结果>
 Model Preference / Thinking: <按 core/model-routing.md 指定模型偏好与档位>
-Skills: <逻辑 Skill 名称 + REQUIRED / OPTIONAL + 是否已安装 + invocation policy + 加载结果；invocation policy 使用 HERDR_EXPLICIT_COMMAND / USER_COMMAND / RUNTIME_AUTO / CORE_FALLBACK；无则 None。`disable-model-invocation: true` 不得标为 RUNTIME_AUTO；可选 Skill 未加载时走 Core fallback>
+Skills: <逻辑 Skill 名称 + REQUIRED / OPTIONAL + 是否已安装 + invocation policy + 加载结果；invocation policy 使用 HERDR_EXPLICIT_COMMAND / USER_COMMAND / RUNTIME_AUTO / CORE_FALLBACK；无则 None。CORE_FALLBACK 仅 OPTIONAL 或无 Skill 时使用；REQUIRED 不得使用 CORE_FALLBACK。`disable-model-invocation: true` 不得标为 RUNTIME_AUTO>
 References: <按需加载的参考文件路径；无则 None>
 Workspace Baseline:
   Branch: <任务开始时的当前分支>
@@ -32,13 +36,13 @@ Workspace Baseline:
   Pre-existing Paths Overlapping Scope: <与本次目标修改范围重叠的既有变更路径；无则 None>
   Overlap Handling: <NONE | EXCLUDED | USER_AUTHORIZED_WITH_SNAPSHOT | BLOCKED>
   Baseline Snapshot: <任务前快照目录/文件路径；无则 N/A>
-  Allowed Paths: <本次任务允许修改的路径>
-Scope: <允许检查或修改的文件、模块及边界>
+  Allowed Paths: <允许写入的绝对路径；包含实现文件和指定产物，未列出的临时脚本路径不获授权>
+Scope: <允许只读检查的文件、模块及边界；写入权限由 Allowed Paths 指定>
 Context: <需求、方案、代码位置、前序证据和相关规范>
-Retrieval: <按 references/code-retrieval.md 选择 CodeGraph MCP / rg / fd / Read / sed；或 N/A>
+Retrieval: <按 core/references/code-retrieval.md 选择 CodeGraph MCP / rg / fd / Read / sed；或 N/A>
 Time Budget: <按 core/acceptance.md 的阶段预算和检查点；已知硬限制>
-Deliverables: <产物路径与交付内容；无文件时说明>
-Constraints: <本任务适用的 core/permissions.md 权限、安全与工作区边界>
+Deliverables: <Task Root 内的绝对交付路径、内容和唯一写入负责人；无文件时说明>
+Constraints: <本任务适用的 core/permissions.md 权限、安全与工作区边界；明确允许的工具/命令、手工审查文件在 Task Root 内的位置及验证命令自身输出位置。需核验 Pi 元数据时授权目标 Agent 用 printf 读取自身 PI_PROVIDER / PI_MODEL / PI_REASONING_LEVEL；需定位 Session 时同时授权 PI_SESSION_FILE；不能获得此能力时由 Main 按 model-routing.md 处理>
 Acceptance Criteria: <可观察、可验证的完成条件>
 Decision Authority: <已确认决策 / 项目约定 / Agent 可提出建议的边界；注明产品/领域批准责任人>
 Developer Review Requirement: <REQUIRED | RECOMMENDED | NOT REQUIRED；由 Main 按 core/acceptance.md 判定>
@@ -57,7 +61,7 @@ Main 在任务 Intake 时记录 Workspace Baseline，并将其传递给所有可
 - `Pre-existing Paths Overlapping Scope`：任务目标与任务前既有修改/未跟踪文件重叠的路径。
 - `Overlap Handling`：`NONE`（无重叠）、`EXCLUDED`（已从本次修改范围排除）、`USER_AUTHORIZED_WITH_SNAPSHOT`（用户明确授权且已建立快照）或 `BLOCKED`（无法安全区分）。
 - `Baseline Snapshot`：存在已授权的重叠路径时，记录任务开始前相关文件快照的位置；无重叠时为 `N/A`。
-- `Allowed Paths`：本次任务允许检查/修改的路径。
+- `Allowed Paths`：本次任务允许写入的绝对路径；只读检查范围由 `Scope` 指定。
 
 Base Commit 只表示任务开始时的 HEAD；`git diff <base>` 仍会包含任务开始前已经存在的工作区修改，不能单独证明这些变更属于当前任务。Main 默认将既有脏文件从 `Allowed Paths` 排除。若任务确实需要修改重叠路径，Main 先向用户说明重叠文件和风险，取得明确授权，再在任何子 Agent 写入前为相关文件建立任务前快照，放入本任务的 `workspace-baseline/`。快照遵循与源文件相同的访问控制，只包含必要文件，不得包含/复制无关凭据或私密数据。快照是审阅证据，不属于实现交付物；默认不得将其混入产品构建、发布包或实现提交。无法安全建立可靠快照时，将该路径标记 `BLOCKED` 并暂停。
 
@@ -73,11 +77,15 @@ Visual Implementation 额外填写：
 - `States`：页面、交互、主题和数据状态。
 - `Assets`：可复用图片、字体、图标、设计 Token 和素材目录。
 
-实际执行视觉实现的 Agent 必须加载 `skills/ui-impl/SKILL.md`。上游 `implement`、`grill-with-docs`、`retro` 若设置 `disable-model-invocation: true`，Task Contract 不得将其描述为模型可自主调用的能力；Main / Orchestrator 可以通过显式命令触发。向 Herdr → Pi 子 Agent 委派时，所有已安装 Skill 统一使用 `/skill:<name>`：例如 `/skill:implement`、`/skill:grill-with-docs`、`/skill:retro`、`/skill:ui-impl`。该命令由 Main / Orchestrator 显式放在 `herdr agent prompt` 消息开头，再附完整 Task Contract。子 Agent 必须在 Handoff 中报告 parent Skill 是否实际加载，以及正文引用的嵌套 Skill / 工具是否真正执行；parent 加载成功不代表内部依赖全部运行。对于 Pi 不支持的 Claude Code `Skill` Tool 嵌套调用，标记为 `UNSUPPORTED` / `SKIPPED`，并说明是否采用 Core fallback。
+实际执行视觉实现的 Agent 必须加载 `skills/ui-impl/SKILL.md`。Skill 加载、依赖与失败处理遵循 §1，Runtime 调用方式见 `runtimes/README.md`；Handoff 分别记录加载证据和实际执行结果。
 
 ## 5. Task Artifact Directory
 
-默认任务目录：`.agents/workflow/tasks/<task-id>/`。所有 L2 任务都必须创建 `overview.md`，作为开发者了解任务目标、关键决策、实现变化、验证结果和后续事项的统一入口。L0/L1 可按需创建。
+一个 Workflow 任务只有一个产物根目录，默认位于目标项目的 `<Repository Root>/.agents/workflow/tasks/<task-id>/`，不位于 `AGENT_WORKBENCH_ROOT`；Contract 填写解析后的绝对 Task Root。Task ID 表示任务生命周期，重复入口调用、阶段切换和会话恢复沿用该目录；独立 Workflow 建立独立根目录。L0/L1 无文件交付时可不创建，L2 必须由 Main 创建 `overview.md`。
+
+子 Agent 不另建顶层 task 目录。多份同类报告使用不同文件；需细分执行时使用 `subtasks/<subtask-id>/` 保存 Contract、报告和证据，由顶层 `overview.md` 索引。每个产物只有一个写入负责人：Main 维护总览、决策和最终方案，子 Agent 写指定报告；Main 汇总时引用报告；事实笔误修正与写入权移交遵循 `permissions.md` 的 Report Corrections，不与子 Agent 同写文件。
+
+任务产物是本地 Agent 上下文，默认不纳入提交。Intake 检查根目录是否被 Git 忽略，在总览说明本地保存方式；未被忽略时建议使用项目本地 `.git/info/exclude`，不自动修改项目忽略规则或提交产物。提交前显式排除 task 目录。历史产物不自动迁移、删除或归档；长期知识提炼遵循 `acceptance.md` §10。
 
 按任务类型创建下列产物；未触发的阶段无需创建文件。
 
@@ -102,9 +110,10 @@ Visual Implementation 额外填写：
 ### `overview.md`：任务总览
 
 - 记录 Workspace Baseline 的摘要、重叠路径和处理方式；完整字段以本次 Task Contract 为准。若存在已授权重叠路径，链接 `workspace-baseline/` 快照。
-- 所有 L2 任务由 Main 创建并维护 `overview.md`；在 Intake 后建立初始版本，在 Gate 和最终验收前更新。
+- 所有 L2 任务由 Main 创建并维护 `overview.md`。顶部 Status 是唯一当前状态入口：当前 Main 配置、阶段、授权及来源、阻塞、Verdict、人工审阅状态、已提交 Commit 和外部操作结果；尚未发生的项写 None。Intake、阶段切换及每次续接结束时更新，其他章节引用顶部状态。
+- 历史授权、模型切换、提交、外部操作及报告写入权移交放在带时间和证据的 Execution History；参与者表按执行阶段记录模型，不把旧配置当成当前值。历史记录不自行授予当前权限。
 - 它是任务导航页和审阅摘要，不复制其他产物的完整内容。使用相对路径链接到 `research.md`、`decisions.md`、`plan.md`、`handoff.md`、Review / Test 报告、视觉证据及适用时的 `workspace-baseline/`。
-- 至少说明：原始目标和验收条件；任务类型/级别与 Main Runtime；参与 Agent；关键修改模块/文件；决策 ID、来源和状态；主要调用链/数据流；测试与 Review 结论；Developer Review 判定及理由；未解决风险和下一步。
+- 至少说明：Task Root、Repository Root、本地保存方式；原始目标和验收条件；任务类型/级别与 Main Runtime；参与 Agent；关键修改模块/文件；决策 ID、来源和状态；主要调用链/数据流；测试与 Review 结论；Developer Review 判定及理由；未解决风险和下一步。
 - 对没有触发的阶段明确写 `N/A`，并说明原因；不要为了填满目录生成空白报告。
 
 ### `decisions.md`：决策追踪
@@ -113,7 +122,7 @@ Visual Implementation 额外填写：
 
 每项决策至少记录：Context、Problem、Options、Decision、Rationale、Trade-offs、Decision Owner、Origin、Status、Approval Requirement / Status、Impact 和 Evidence。
 
-- `Origin` 使用 `USER_APPROVED`、`PROJECT_CONVENTION` 或 `AGENT_PROPOSAL`。
+- `Origin` 使用 `USER_APPROVED`、`PROJECT_CONVENTION` 或 `AGENT_PROPOSAL`。`USER_APPROVED` 必须引用 Main 会话中具体问题、推荐版本和用户回答，或用户明确指定的外部批准依据；子 Agent 转述不等于用户批准。
 - 需要业务确认的决策记录 `Product / Domain Approval` 的责任人、状态和确认依据；技术 Developer Review 与业务批准分开记录。
 - `Status` 使用 `PROPOSED`、`CONFIRMED`、`REJECTED` 或 `DEFERRED`。
 - Agent 可以分析并提出方案；实质性产品或设计选择超出已确认需求和项目约定时，先交 Main Clarify。需要业务方权衡的决策须在依赖该决策的实现开始前取得用户或 Product / Domain Owner 的明确批准。
@@ -124,14 +133,15 @@ Visual Implementation 额外填写：
 
 所有 L2 实现任务的 Handoff 必须包含 `Implementation Walkthrough`，说明关键变更与需求/决策的对应关系、核心调用链或数据流、关键抽象/状态/领域规则、技术取舍、扩展入口和排查线索。结合真实文件、符号和必要行号；避免泛化描述或重复整份 Diff。
 
-- Implementer 将完整交接写入 `handoff.md`；Reviewer 和 Tester 写入各自报告。
+- Implementer 将完整交接写入 `handoff.md`；Reviewer 和 Tester 写入各自报告。实际模型/档位附元数据来源，不能从启动偏好推断。
+- 所有 Handoff / Review / Test 报告列出实现与指定报告之外的手工写入绝对路径、用途和权限依据（无则 None），包括审查临时文件；验证命令自身输出按 Constraints 记录。Main 对照工具结果和已知写入核对，不只看 Git Diff；发现越界按 `permissions.md` §2 处理。
 - 其他任务按 Task Contract 指定路径交付。
 - 文件交付任务必须写入完整内容，不能只在对话中返回摘要；写入失败时说明原因。
 - 模板位于 `core/templates/`；创建产物时以模板为起点，按任务实际情况删去不适用章节并说明 `N/A`。
 - 任务目录中的结论必须链接到可核验的源码、Diff、测试输出或来源；摘要不能替代原始证据。
-- 不同 Task ID 使用独立产物目录，并行 Agent 使用不同文件，避免写入冲突。
+- 不同 Workflow 使用独立产物根目录，同一 Workflow 的并行 Agent 使用不同文件或 `subtasks/` 子目录；按 Contract 指定的唯一写入负责人交付。
 - Visual Implementation 的截图默认保存到 `screenshots/`，命名可采用 `iteration-1.png`、`iteration-2.png`、`final.png`；优先引用用户提供的参考图原始路径。
-- 所有路径相对于项目仓库根目录；任务目录统一位于 `.agents/workflow/tasks/`，不另建 `.artifacts/`。
+- 报告导航使用相对 Task Root 的链接；Contract 的 Task Root、允许写入范围和交付位置使用绝对路径。产物集中在当前根目录，不另建 `.artifacts/`。
 
 ## 7. Completion Status
 

@@ -8,11 +8,12 @@
 
 - **Type:** PRODUCT / INTERACTION / ARCHITECTURE / API / DATA / SECURITY / COMPATIBILITY / PERFORMANCE / OPERATIONS / OTHER
 - **Origin:** USER_APPROVED / PROJECT_CONVENTION / AGENT_PROPOSAL
-- **Decision Owner:** USER / PRODUCT_OWNER / DOMAIN_OWNER / TECHNICAL_OWNER / MAIN_AGENT / PROJECT_CONVENTION
+- **Decision Owner:** USER / PRODUCT_OWNER / DOMAIN_OWNER / TECHNICAL_OWNER / MAIN_AGENT（填写实际负责人；项目约定记录在 Origin / Evidence）
 - **Status:** PROPOSED / CONFIRMED / REJECTED / DEFERRED
 - **Product / Domain Approval:** NOT_REQUIRED / PENDING / APPROVED / REJECTED
 - **Approved By:** <用户 / 产品负责人 / 领域负责人；不适用时 N/A>
-- **Approval Evidence:** <对话确认、Issue、ADR 或其他可追溯依据>
+- **Approval Evidence:** <Main 会话具体问题 / 推荐版本 / 用户回答，或用户指定的外部批准依据>
+- **Approval Scope:** <本次确认的类型、问题 ID 和范围；不覆盖其他门禁或新决策>
 - **Affected Areas:**
 
 #### Context

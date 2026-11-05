@@ -1,143 +1,71 @@
 # Runtime 适配
 
-Runtime Adapter 将同一套 Core Workflow 接入不同的 Main Agent。Core 使用逻辑 Skill 名称；Adapter 负责将其映射为当前 Runtime 的调用形式。
+Adapter 负责入口加载、Skill 语法和运行时调度；任务生命周期、权限、产物和验收由 Core 定义，不在各入口重复维护。
 
-## Runtime 入口矩阵
+## 入口与准备
 
-| Runtime | Main 入口 | 默认入口位置 | 调用方式 |
-|---|---|---|---|
-| Claude Code | Skill `workflow` | `~/.claude/skills/workflow/SKILL.md` | `/workflow <任务目标>` |
-| Pi | Prompt Template `workflow` | `~/.pi/agent/prompts/workflow.md` | `/workflow <任务目标>` |
+| Runtime | Main 入口 | 默认位置 |
+|---|---|---|
+| Claude Code | `/workflow <目标>`，Skill | `~/.claude/skills/workflow/SKILL.md` |
+| Pi | `/workflow <目标>`，Prompt Template | `~/.pi/agent/prompts/workflow.md` |
 
-两个 Runtime 和 Herdr 启动的 Pi 子 Agent 都需要通过 `AGENT_WORKBENCH_ROOT` 定位同一份仓库。入口启动时验证该变量和 Core 文件；路径不存在时停止并报告配置问题。仓库应放在稳定路径。移动仓库后，先检查并移除指向旧路径的 Pi Prompt / Skills Symlink，再重新安装链接。通过桌面应用启动 Runtime 或 Herdr 时，确认对应进程及其启动的子进程都能读取该变量；Shell Profile 中的设置不一定自动传递给 GUI 进程或已运行的服务。
+Main 和 Pi 子 Agent 通过 `AGENT_WORKBENCH_ROOT` 定位同一份仓库。入口验证环境变量和 Core；GUI / Herdr 已运行进程不一定继承后来修改的 Shell Profile。路径无效时先修配置。安装步骤见各 Adapter README。
 
-```bash
-export AGENT_WORKBENCH_ROOT="$HOME/Workspace/agent-workbench"
-test -n "$AGENT_WORKBENCH_ROOT"
-test -f "$AGENT_WORKBENCH_ROOT/core/workflow.md"
-```
+同一任务直接说“继续”或调整目标，重复 `/workflow` 也按 `core/workflow.md` §2 续接；不要求用户逐阶段输入命令。会话恢复读取该任务总览和必要规则，不扫描无关历史。
 
-## 环境准备
+Herdr 调用前检查当前 CLI Help / MCP Schema，并确认可用 Shell Pane。`agent start` 不创建 Pane；布局创建响应中的 ID 是后续调用的唯一依据。推荐 Pi Integration 提供 Session 身份和状态；缺失时仍可使用明确的文件交付，不以读屏代替验收。
 
-调用 `/workflow` 前，准备以下组件：
+## Skill 调用
 
-1. **Herdr**：安装并启动 Herdr TUI；确认 `herdr --help` 能显示当前 CLI 命令。Agent Automation 依赖可用的 Workspace / Tab / Shell Pane。
-2. **Pi Coding Agent**：安装 Pi CLI，并完成至少一个可用 Provider / Model 的认证。确认 `pi --help` 和模型配置可用。
-3. **Main Runtime**：选择 Claude Code 或 Pi。只有选择 Claude Code Main 时才需要安装 Claude Code 并完成登录/认证。
-4. **Skills CLI**：需要安装或同步 Skills 时准备 Node.js、pnpm 和 `pnpx skills`；具体第三方 Skill 安装分流见 `skills/README.md`。
-5. **环境变量**：设置 `AGENT_WORKBENCH_ROOT`，并确保 Main Runtime 与 Herdr 启动的 Pi 子 Agent 进程都能读取该变量。桌面应用启动时要单独确认进程环境。
+Core / Task Contract 是默认执行路径，Skill 是按需专项能力，不另起 Workflow。
 
-建议安装 `herdr integration install pi`，为 Herdr 提供 Pi Session 身份和状态上报，并支持服务重启后的会话恢复。它是增强项，不是 Pane / Agent 基本调度的前置条件。
+| 场景 | 语法 / 责任 |
+|---|---|
+| Claude Code Main | 用户显式调用 `/skill-name`；模型自动调用仅限 Runtime 和 Skill 明确支持时 |
+| Pi Main | 用户显式调用 `/skill:name <请求>`；允许模型加载的 Skill 可直接读取其 `SKILL.md` |
+| Herdr → Pi 子 Agent | Main 通过 `agent prompt` 发送下面的单行命令与 Contract 路径 |
 
-## Skill 调用映射
+`disable-model-invocation: true` 的 Skill 仅允许显式命令，不标为模型自主调用。`grilling` / `grill-with-docs` 等需要用户回答的能力留在 Main；非交互领域分析或文档审查可独立委派。上游依赖和安装分流见 `skills/README.md`。
 
-Core 只引用逻辑 Skill 名称，不写 Runtime 专属 Slash Command。当前调用映射：
+### Pi 显式委派协议
 
-| 逻辑 Skill | Claude Code | Pi | 调用方式 / 使用说明 |
-|---|---|---|---|
-| `implement` | `/implement`（Claude Code 用户显式调用） | `/skill:implement`；Herdr `agent prompt` 同样使用 `/skill:implement <Issue / Spec URL>` | `disable-model-invocation: true` 禁止模型自主调用；用户 / Orchestrator 显式命令可触发。内部 `code-review` 仍需 Tracker / fixed point；嵌套依赖单独核验 |
-| `grill-with-docs` | `/grill-with-docs` | `/skill:grill-with-docs`；Herdr `agent prompt` 使用同一语法 | 用户 / Orchestrator 显式调用；内部 `grilling` / `domain-modeling` 调用仍需核验，Pi Main 默认使用 Core Clarify |
-| `retro` | `/retro` | `/skill:retro`；Herdr `agent prompt` 使用同一语法 | 用户 / Orchestrator 显式调用；内部 `writing-for-agents` 调用仍需核验，Pi Main 默认使用 Core Retro |
-| `tdd` | `/tdd`（可选安装） | `/skill:tdd` | Red-Green-Refactor 测试驱动实践；默认只安装到 Pi |
-| `codebase-design` | `/codebase-design`（可选安装） | `/skill:codebase-design` | `tdd` 使用的接口设计 / 模块边界参考；默认随 `tdd` 安装到 Pi；需使用时可通过 Herdr 单独显式委派 |
-| `code-review` | 保留 Claude Code bundled `/code-review` | `/skill:code-review`（仅条件安装） | 上游 `implement` 的自检；第三方版本默认不安装到任何 Runtime；只有 Tracker / fixed point 条件满足且明确选择试用时才按需安装到 Pi，不得替代 Core Primary Review |
-| `grilling` | `/grilling` | `/skill:grilling`（需单独安装并显式委派） | `grill-with-docs` 在 Claude Code 中的访谈依赖；Pi parent 不会自动调用该依赖 |
-| `domain-modeling` | `/domain-modeling` | `/skill:domain-modeling`（需单独安装并显式委派） | `grill-with-docs` 在 Claude Code 中的领域建模依赖；Pi parent 不会自动调用该依赖 |
-| `writing-for-agents` | `/writing-for-agents` | `/skill:writing-for-agents`（需单独安装并显式委派） | `retro` 在 Claude Code 中的文档写作依赖；Pi parent 不会自动调用该依赖 |
-| `ui-impl` | `/ui-impl` | `/skill:ui-impl` | 视觉实现专项 Skill |
+1. Main 将完整 Contract 写入当前 Task Root（细分时放 `subtasks/<id>/contract.md`），指定 Repository Root、唯一交付文件、绝对允许写入路径、必要依赖和前置条件；确认目标 Agent 能读取。Task Root 是产物位置，不能用来推断代码仓库或 Workbench 的位置。
+2. 目标 Agent ready 且没有旧工作运行时才提交新任务。Core 路径直接发送“读取 <Contract 绝对路径>，按契约执行并交付”。
+3. 需要显式 Skill 时，发送一条单行消息，Skill 名称后必须有普通空格，完整任务输入通过 Contract 路径提供：
 
-Claude Code 用户显式调用使用 `/skill-name`；Pi 交互式调用和 Herdr → Pi `agent prompt` 向目标 Pi Agent 发送 Skill 命令时，统一使用 `/skill:<name>`，例如 `/skill:implement`、`/skill:grill-with-docs`、`/skill:retro`、`/skill:ui-impl`。Pi Prompt Template 仍按文件名调用，例如 `/workflow`。上游设置 `disable-model-invocation: true` 的 Skill 不能由模型自主选择或通过 Skill Tool 自动调用；由用户或 Main / Orchestrator 显式发送 `/skill:<name>` 属于命令调用，符合该限制。该规则适用于所有已安装到目标 Pi Agent 的 Skills，不局限于 `implement`。parent Skill 成功加载不代表其正文中的嵌套 Skill / Skill Tool 调用自动成功；`tdd`、`code-review`、`grilling`、`domain-modeling`、`writing-for-agents` 等依赖仍须逐项确认实际执行和报告。Pi 中的 `grill-with-docs` / `retro` 仅保证可显式加载 parent；其正文依赖的 Claude Code `Skill` Tool 嵌套调用不属于当前支持的 Pi 执行路径。Pi Main 默认使用 Core Clarify / Retro；如需单项依赖能力，由 Main 通过 Herdr 单独派发 `/skill:<name>` 并核验结果。
+   ```text
+   /skill:ui-impl 先读取 Contract：<Contract 绝对路径>；核对所需 Skill、依赖、权限和输入后，按契约执行并交付。
+   ```
 
-**Claude Code 的同名 Skill 注意事项：** Claude Code 自带 bundled `/code-review`，同时提供 `/review` 别名。安装同名的个人/项目 `code-review` Skill 会覆盖 `/code-review`，但不会覆盖 `/review`。本仓库不把 Matt Pocock 的第三方 `code-review` 安装到 Claude Code，以保留其 bundled `/code-review`。第三方版本默认不安装到任何 Runtime；只有选择试用上游 `implement` 链路、项目 Tracker 与 fixed point 前置条件满足时，才按需安装到 Pi。详见 [Claude Code 同名 Skill 优先级](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)。
+   上游 `implement` 确实适用时，传入其需要的 Spec / Ticket 引用，同时在同一行附 Contract 路径；先确认 `skills/README.md` 的 Tracker / fixed point 与权限条件。
 
-第三方 Skill 内部若描述调用另一个 Skill，必须逐项确认当前 Runtime 的调用能力。Herdr `agent prompt` 以 `/skill:<name>` 开头可显式加载目标 Pi Agent 上已安装的 parent Skill；这不代表 parent 正文中的 Claude Code `Skill` Tool 调用会自动转换为 Pi 可执行的嵌套调用。嵌套依赖未完成验证前，使用 Core fallback 或由 Orchestrator 显式拆分为独立子任务。实际执行的子 Agent 必须自行加载 Contract 指定的 Skill，Main 已加载的 Skill不会自动继承给子 Agent。
+4. 不把“裸 Skill 加载”与 Contract 拆成两次提交：显式 Skill 会立即启动 Agent，不是纯加载动作。当前 Pi 按普通空格分隔命令名称，换行紧跟名称的多行命令可能不展开；这一兼容限制应在升级 Pi 时重新验证。未知 Skill 可能原样传入模型，因此必须检查加载证据。
+5. 子 Agent 开始实际工作前核对 REQUIRED Skill 和依赖；模型允许加载的依赖可读取其文件，显式调用型依赖需支持的独立调用路径。REQUIRED 缺失 / 未展开时报告 Main 并停止受影响工作；OPTIONAL 失败按 Contract 披露并 fallback。Handoff 分别提供加载与执行证据，不把 parent 展开算作嵌套依赖成功。
 
-## Herdr → Pi 调度
+长 Contract 放文件而不是拼入命令；路径包含空格时保持完整并明确为一个路径。Contract 约束应与所选 Skill 前置条件一致；发现冲突先报告 Main，不能先执行后补权限。
 
-Herdr 的自动化分为三个层次：
+## Herdr → Pi 调度与证据
 
-- **Layout**：Workspace、Tab、Pane 的创建和组织。
-- **Pane**：控制原始终端，运行命令、发送输入、读取输出和等待文本。
-- **Agent**：启动和控制识别到的 Pi Agent，并观察其 `working`、`blocked`、`idle` 等状态。
+以下是顺序说明，不是固定脚本；实际参数按当前安装版本核实：
 
-关键约束：`herdr agent start` 需要一个已存在、处于 Shell Prompt 的 Pane；它本身不会创建或拆分 Pane。Main 应先创建/选择 Workspace、Tab 和 Shell Pane，再使用实际返回的 Pane ID 启动 Pi。
-
-### 典型调度顺序
-
-下面示例假设 Main 当前运行在一个可用的 Herdr Pane 中，并已安装可选工具 `jq`。若使用 Herdr MCP / 结构化 API，可直接读取 JSON 字段，无需安装 `jq`：
-
-```bash
-# 1. 在 Main Pane 旁边创建 Shell Pane。
-split_json=$(herdr pane split --current --direction right --no-focus)
-PI_PANE_ID=$(printf '%s\n' "$split_json" | jq -r '.result.pane.pane_id')
-test -n "$PI_PANE_ID"
-
-# 2. 在该 Shell Pane 中启动 Pi。
-herdr agent start implementer --kind pi --pane "$PI_PANE_ID"
-
-# 3. Main 按 core/task-contract.md 组装完整 Task Contract。
-TASK_CONTRACT_PROMPT="$(cat <<'TASK_CONTRACT_EOF'
-<由 Main 按 core/task-contract.md 填写的完整 Task Contract>
-TASK_CONTRACT_EOF
-)"
-
-# 4. 提交任务契约并等待 Agent 状态变化。
-# 仅当选择上游 implement 且 Skill / Tracker / fixed point 前置条件已满足时启用命令前缀。
-USE_UPSTREAM_IMPLEMENT=0
-if [[ "$USE_UPSTREAM_IMPLEMENT" == "1" ]]; then
-  : "${ISSUE_OR_SPEC_URL:?Set ISSUE_OR_SPEC_URL when invoking upstream implement}"
-  IMPLEMENT_PROMPT="$(printf '/skill:implement %s\n\n%s' "$ISSUE_OR_SPEC_URL" "$TASK_CONTRACT_PROMPT")"
-else
-  IMPLEMENT_PROMPT="$TASK_CONTRACT_PROMPT"
-fi
-herdr agent prompt implementer "$IMPLEMENT_PROMPT" --wait --timeout 300000
-
-# 5. 读取执行结果；独立核验文件与 Git Diff。
-herdr agent read implementer --source recent-unwrapped --lines 120
-```
-
-示例中的 Task Contract 由 Main 按 `core/task-contract.md` 动态组装并通过 Prompt 传递；`task-contract.md` 是规范模板，不代表每个任务目录必须存在同名文件。长契约也可以写入任务目录，再在 Prompt 中传入可访问的路径，并明确要求子 Agent 读取。
-
-这是 CLI 流程示例，不是固定脚本。若 Main 不在 Herdr Pane 内，先创建 Workspace / Tab / Shell Pane；具体命令按安装版本的 CLI Help 或 MCP Schema 执行。创建命令会返回 JSON，必须从响应中读取 Pane ID，禁止猜测 ID。
-
-模型偏好和 Thinking 由 `core/model-routing.md` 决定。若通过 `herdr agent start ... -- <Pi CLI args>` 指定 Pi 模型参数，必须先根据当前 `pi --help` 和 Provider 配置确认参数有效，并在启动后核对实际 Model / Thinking。
-
-### 调度与恢复规则
-
-1. 确认目标 Pane 是可用 Shell Prompt，再执行 `agent start`。
-2. `agent start` 返回后，使用 `agent prompt` 传递 Task Contract；长任务使用 `--wait` 和明确 Timeout。
-3. 等待结束后读取 Agent 输出，并检查其写入的产物文件、源码和 Git Diff；终端输出不能替代文件证据。
-4. Agent 处于 `blocked` 时先读取并理解阻塞内容，再通过当前 UI / `agent send-keys` 处理需要人工输入的步骤。`agent prompt` 对已处于 `blocked` 的 Agent 不会提交新 Prompt。
-5. `agent prompt --wait` 从非工作状态提交时，需要观察到状态进入 `working` 或 `blocked`；未观察到活动可能返回 `agent_prompt_stalled`。超时或 stalled 后先读取 Agent 当前状态和输出，再决定是否重试；超时不代表 Prompt 一定没有发送，盲目重试可能造成重复任务。
-6. Herdr 状态用于运行协调，不代表交付验收。最终判断仍由 Main 完成。
-
-本节 CLI 示例使用可选 `jq` 解析 Pane ID；使用 MCP / 其他结构化工具时，可直接读取返回字段，无需安装 `jq`。
-
-### Pi 集成
-
-建议安装 Pi Integration：
-
-```bash
-herdr integration install pi
-herdr integration status
-```
-
-Pi Integration 为 Herdr 提供 Pi Session 身份、状态上报和重启后的会话恢复支持。它属于推荐增强项，不替代 Pane / Agent 的基本自动化能力。详细行为以 [Herdr Integrations](https://herdr.dev/tui/docs/integrations/) 为准。
+1. 创建或选择可用 Shell Pane，保存响应中的 Pane ID，保持用户焦点。
+2. 显式指定子 Agent 模型与 Thinking 启动 Pi；核验方法见 `core/model-routing.md`。
+3. 提交 Contract 路径（或上述单行 Skill 命令）时不要带 `--wait`：`agent prompt` 成功只代表已写入，之后用 `agent get` 确认 `working`。用 1 秒级 `--wait` 探活只会拿到必然的 timeout 非零退出，把正常投递显示成错误。
+4. 需要阻塞等待时用一个贴近任务实际时长的 `--wait` / `agent wait`（例如 `--timeout 600000`），而不是反复 120 秒轮询；状态等待不跟踪具体任务，旧 turn 的完成不能算新任务的完成。
+5. `agent get` / 结构化 API 用于协调运行、阻塞和 Session 身份；指定报告、源码、Diff 和真实检查结果用于验收。先核对 Task / Subtask ID 与交付内容，再判断本次完成。
+6. 超时 / stalled 后先检查原 Agent 的状态和产物；仍在运行则继续观察原任务，不补发。若结果未知，暂停重发并报告。恢复规则见 `core/acceptance.md` §13。
+7. 产物缺失、状态矛盾或 Skill 加载异常时，读取目标 Agent 提供的 `PI_SESSION_FILE`，或 `agent get` 的 `agent_session.value`（以当前 Schema 为准），只查看相关输入、工具结果和状态事件。Main 的 Session 路径不能替代子 Agent 的路径。
+8. TUI `agent read` / `pane read` 仅排查终端问题；不是用户批准、Skill 展开或任务完成的证据。阻塞需要用户决策时回到 Main；终端权限 / 登录对话只在明确授权后处理，未知对话不得自动批准。
+9. 仅清理本任务创建且不再需要的 Pane / Session，保留本地证据和仍需恢复的会话。
 
 ## 新增 Runtime
 
-1. 在 `runtimes/<runtime>/` 建立入口和 Adapter 文档。
-2. 入口读取 `AGENT_WORKBENCH_ROOT` 并加载 `core/workflow.md`。
-3. 在 Adapter 中定义 Core 逻辑 Skill 名称到该 Runtime 调用方式的映射。
-4. 按阶段加载 Core 子文档和 Task Contract 要求的 Skills / References。
-5. 通过当前 Runtime 可用的 Herdr 接口派发 Pi 子 Agent。
-6. 不复制任务分级、模型路由、权限、Contract、Review 或 Acceptance 规则。
+入口接入 `core/workflow.md` 的任务启动 / 续接协议，Adapter 定义 Skill 调用、模型核验、结构化状态和文件交付方式。两个 Runtime 使用同一 Core；不复制分级、权限矩阵、模型表和验收规则。
 
 ## 参考资料
 
 - [Herdr Agent Automation](https://herdr.dev/tui/docs/agent-automation/)
-- [Herdr Agents](https://herdr.dev/tui/docs/agents/)
 - [Herdr Integrations](https://herdr.dev/tui/docs/integrations/)
-- [Claude Code Skills](https://code.claude.com/docs/en/skills)
 - [Pi Skills](https://pi.dev/docs/latest/skills)
 - [Pi Prompt Templates](https://pi.dev/docs/latest/prompt-templates)
+- [Claude Code Skills](https://code.claude.com/docs/en/skills)

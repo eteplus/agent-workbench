@@ -45,14 +45,15 @@ Main Runtime 和 Main Model 独立选择：
 
 不设置独立 Preflight。常规任务直接委派；目标模型不可用、映射不明确或能力未知时，按需检查模型目录和会话状态。
 
-Pi RPC / CLI 能力可用时，按需使用：
+按当前 Runtime 能力核验，不混用 TUI、CLI 与 RPC 接口：
 
 - `get_available_models` 或 `pi --list-models [keyword]` 查询模型目录，可读取 `provider`、`id`、`input`、`reasoning` 和 `cost` 字段。
-- 子 Agent 启动后使用 `get_state` 核对实际 `model` 与 `thinkingLevel`。
-- 必要时使用 `get_available_thinking_levels` 查询支持档位。
-- 任务结束后按需使用 `get_session_stats` 记录 input/output/cache tokens、总 tokens 和 cost。
+- `get_state` 只用于 RPC 会话，核对实际 `model` 与 `thinkingLevel`；Herdr TUI 不调用 RPC 专属命令。
+- Main 在 Contract Constraints 中授权必要的只读元数据查询；Pi TUI 子 Agent 在自己的 LLM Shell 工具中读取 `PI_PROVIDER`、`PI_MODEL`、`PI_REASONING_LEVEL`，记录到指定报告；这些值随工具调用反映该 Session 的有效配置。Main 环境、启动参数和 Prompt 声明不能替代子 Agent 实际值。
+- 需要定位 Session 时，子 Agent 提供 `PI_SESSION_FILE`，或 Main 读取 Herdr 结构化 Agent 的 `agent_session.value`（实际字段以当前 Schema 为准）；仅异常时定向读取相关事件。
+- RPC 可用时使用 `get_available_thinking_levels` 查询支持档位，`get_session_stats` 记录 Usage / Cost；TUI 不调用这些 RPC 专属命令。
 
-能力不可用时记录 `N/A`。不读取或输出 `env` / `printenv` 全量内容、API Key、Token、密码、`auth.json` 或含凭据的配置。
+实际值与偏好不符时，由 Main 按 §3 决定使用已知 fallback 或暂停，并记录理由；不能仅写“未确认”继续依赖该配置。元数据渠道不可用时标记 `NOT VERIFIED` 并说明能力限制；路由必要条件（如 Reviewer 跨家族）无法核实时暂停该委派。非必要 Usage / Cost 不可获取时写 `N/A`。不读取或输出 `env` / `printenv` 全量内容、API Key、Token、密码、`auth.json` 或含凭据的配置。
 
 ## 5. Escalation Rules
 

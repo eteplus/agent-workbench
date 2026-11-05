@@ -24,17 +24,23 @@ Primary Reviewer、Secondary Reviewer 和 Reviewer Escalation 均属于 Reviewer
 - 当决策会显著改变用户可见行为、公共契约、数据语义或长期架构，且无法从明确需求/项目约定中确定时，Main 负责向用户 Clarify。
 - Product / Domain Approval 负责确认业务规则、用户可见行为和领域取舍；对该类决策的批准应在依赖它的实现开始前记录。
 - Developer Review 负责确认开发者理解并接受关键实现、技术取舍和维护风险，通常发生在自动化 Gate 之后。两类确认可以由同一人完成，但记录和责任不可混同。
+- Main 每次请求确认都声明类型和覆盖范围。同一轮已明确列出的同类设计问题可用“全部按推荐”批量确认；批准只覆盖该轮问题与推荐，不覆盖新决策、Developer Review、外部发布或未列出的实施范围。记录具体问题、回答来源和批准范围；标签选择等局部回答不关闭其他门禁。
 - Developer Review 的批准只覆盖审阅包中明确呈现的变更和取舍；批准不授权未列出的范围，也不替代 Product / Domain Approval、安全、测试和 Review 门禁。
 
 ## 2. Workspace Boundary
 
-- 所有 Agent 遵循任务授权路径和最小必要权限；无法确认变更归属或任务范围时，暂停并报告 Main。
+- 所有 Agent 遵循 Contract 的绝对写入路径和最小必要权限，包括报告和一次性脚本。手工审查临时文件写入已授权的 Task Root 子目录；验证命令自身生成的缓存、构建输出和系统临时文件在 Constraints 中单独声明允许位置。路径声明是行为约束，不是文件系统沙箱。
+- 发现或无法确认越界写入时，停止相关写入并报告 Main，暂停最终 PASS。Main 核对已知路径的内容归属、覆盖或暴露影响及证据有效性；权限和影响问题解决、证据保存在授权位置后才恢复验收。记录处理依据，不以事后补 Allowed Paths 抹去越界事实，不自动删除或覆盖现有文件。
 - 默认不执行 Git commit / push、不切换分支、不创建或删除 worktree；这些操作仅在用户对当前任务明确授权后执行。
 - 用户已确认的决策、任务开始前的用户修改和其他任务变更必须完整保留；不得覆盖、清理或重置。
-- 任务开始时 Main 建立 Workspace Baseline，并将 Branch、Base Commit、Initial Git Status、既有 Modified / Untracked Paths、重叠路径处理方式、Baseline Snapshot 和 Allowed Paths 传入 Task Contract。默认从本次范围排除任务开始前已修改的路径；必须修改重叠路径时，先取得用户明确授权并建立任务前快照。
-- 并行任务使用独立 Task ID 和产物目录。并行 Implement 只在文件范围互不冲突时运行；有交集时串行。共享工作区按各任务基线核对 Diff。任务目录只隔离产物，不隔离代码工作区。
+- 任务开始时 Main 建立 Workspace Baseline，并将 Branch、Base Commit、Initial Git Status、既有 Modified / Untracked Paths、重叠路径处理方式、Baseline Snapshot 和 Allowed Paths 传入 Task Contract。默认从本次写入范围排除任务开始前已有修改或未跟踪、且与本次范围重叠的路径；必须修改重叠路径时，先取得用户明确授权并建立任务前快照。
+- 独立 Workflow 使用独立任务根目录；同一 Workflow 的并行子任务遵循 `task-contract.md` 的单根目录和唯一写入负责人规则。并行 Implement 只在文件范围互不冲突时运行；有交集时串行。任务目录只隔离产物，不隔离代码工作区。
 - Reviewer 和 Repo Researcher 对实现代码保持只读；报告写入 Task Contract 授权的产物目录。
 - Tester 默认只运行验证；只有 Task Contract 明确授权时才能修改代码。
+
+### Report Corrections
+
+报告数量、路径或措辞等已核实的事实笔误，可在原写入负责人停止写入并明确移交后由 Main 修正。Main 在 `overview.md` 记录文件、原负责人、移交依据和修正范围；同一时刻仍只有一个写入负责人。Finding 严重性、审查覆盖完整性和 Review 结论只能由 Reviewer 修改；涉及实现或验收判断的变化按正常修复与复审处理。
 
 ## 3. Browser & External Side Effects
 
@@ -55,7 +61,7 @@ Primary Reviewer、Secondary Reviewer 和 Reviewer Escalation 均属于 Reviewer
 
 ## 5. Parallel Work
 
-- 每个并行任务使用独立 Task ID、产物目录和明确文件范围。
+- 并行子任务使用独立 Subtask ID、交付文件和明确文件范围，留在同一个 Workflow 根目录；独立 Workflow 不共用根目录。
 - 并行 Implement 仅在文件范围互不冲突时执行。
 - 多个 Agent 共享工作区时，Main 为每项任务记录 Workspace Baseline，并按各自授权范围核对结果。
 - 任务目标与既有 dirty path 重叠时，默认排除该路径；确需修改时由 Main 先取得用户明确授权，并在子 Agent 写入前建立安全的任务前快照。快照仅作本地审阅证据，遵循源文件访问控制，不进入产品构建、发布包或实现提交。无法安全快照或无法可靠归属变更时，暂停相关写入并标记 BLOCKED。

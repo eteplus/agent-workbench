@@ -4,15 +4,17 @@
 
 ## 1. Implement Handoff
 
-L2 代码变更由 Herdr → Pi Implementer 执行。Implementer 必须遵循 Task Contract、`permissions.md` 和本节定义的 Core 实现要求，按授权范围进行最小必要修改，运行与变更直接相关的基础检查，并将结果写入 `handoff.md`。若 Task Contract 指定了 Skill，Handoff 必须填写 `Skill Loading & Execution`，分别记录每个 parent 的安装状态、显式调用方式、实际加载结果，以及每个嵌套依赖的执行结果；Pi 不支持的 Claude Code Skill Tool 嵌套调用标记为 `UNSUPPORTED`，未执行的依赖不得报告为成功。上游 `implement` Skill 是可选的实现编排增强，其 frontmatter 设置 `disable-model-invocation: true`，禁止模型自行选择或通过 Skill Tool 自动触发，但允许显式命令调用。通过 Herdr `agent prompt` 向 Pi Agent 触发 Skill 时，统一使用 `/skill:<name>` 命令前缀；例如 `/skill:implement <Issue / Spec URL>` 可以显式触发已安装的 `implement` parent Skill。该方式属于 Main / Orchestrator 的显式命令委派，不属于模型自主调用。使用前确认 Skill 已安装，目标 Agent 能访问任务上下文，并满足上游调用所需的 Spec / Ticket、Tracker 和 fixed point 条件。触发 parent `implement` 只证明主 Skill 已启动；其内部 `tdd` / `code-review` 调用及各自报告仍须单独核验。条件不满足或 Skill 未成功加载时，直接按 Core Task Contract 实现。
+L2 代码变更由 Herdr → Pi Implementer 执行。Implementer 按 Task Contract、`permissions.md` 和本节规则进行最小必要修改、运行受影响检查，并写入指定 Handoff。Core 是默认实现路径；可选上游 `implement` 的前置条件见 `skills/README.md`，调用方式见 `runtimes/README.md`。
 
-Main 先读取 Handoff，再检查任务范围内的实际 Diff、关键实现和检查结果，然后进入独立 Review。若用户显式调用了上游 `implement`，且该项目具备其 `code-review` 所需的 Issue Tracker 配置，该 Skill 内部执行的 `code-review` 属于 Implementer 自检，可作为 Handoff 补充证据；它不能替代本文件要求的独立 Primary Review，也不得重复计为独立 Reviewer。该上游 Skill 若因缺少 Tracker 配置而提示运行 setup，Main 应停止该可选 Skill 路径并回到 Core 流程；未经用户授权不得自动运行 setup 或写入项目配置。上游 `code-review` 还要求 fixed point，并使用 `git diff <fixed-point>...HEAD` 比较已提交到 HEAD 的分支变更；它不包含 staged / unstaged 工作区修改，不能用作当前未提交 Diff 的完整 Review。当前工作区修改仍由 Core Primary Review 按 Workspace Baseline 和快照规则审查。
+指定 Skill 时，Handoff 的 `Skill Loading & Execution` 分别记录安装状态、加载证据和必要依赖的实际执行结果；未执行不得报告成功。REQUIRED / OPTIONAL 失败处理以 `task-contract.md` §1 为准，REQUIRED 不得静默 fallback。
+
+Main 先读取 Handoff，再检查任务范围内的实际 Diff、关键实现和检查结果，然后进入独立 Review。若用户显式调用了上游 `implement`，且该项目具备其 `code-review` 所需的 Issue Tracker 配置，该 Skill 内部执行的 `code-review` 属于 Implementer 自检，可作为 Handoff 补充证据；它不能替代本文件要求的独立 Primary Review，也不得重复计为独立 Reviewer。该上游 Skill 若因缺少 Tracker 配置而提示运行 setup，Main 按 Contract 的 REQUIRED / OPTIONAL 规则处理；未经用户授权不得自动运行 setup 或写入项目配置。上游 `code-review` 的完整前置条件和 Diff 限制见 `skills/README.md`；它不覆盖未提交工作区修改，不能用作当前未提交 Diff 的完整 Review。当前工作区修改仍由 Core Primary Review 按 Workspace Baseline 和快照规则审查。
 
 ## 2. Test
 
 - Implementer 执行与修改范围直接相关的基础检查，并记录真实命令与结果。
 - 高风险、跨模块、关键契约变更或独立验证能增加覆盖时，委派 Tester。
-- 简单变更可复用 Implementer 已真实执行的检查，避免重复运行同一套测试。
+- 按影响范围复用已真实执行的验证：后续改动未触及已验证代码、测试或相关配置时，保留原命令、覆盖范围和结果，只检查新增改动。影响范围改变时重跑受影响检查；注明复用理由和新增检查，不因报告或文档笔误重跑整套验证。
 - Tester 按 Task Contract 执行约定测试；未经明确授权只报告问题、不修改实现代码。
 - 测试报告必须记录实际命令、测试范围、通过/失败、未覆盖项和环境限制。
 - 测试场景应覆盖原始验收条件及 `decisions.md` 中已确认且可验证的行为/契约决策；无法自动验证的设计取舍列为 Developer Review 关注项。
@@ -54,7 +56,7 @@ Primary Reviewer 必须：
 
 ## 4. Secondary Review & Reviewer Escalation
 
-是否启动 GLM-5.3 Flash Secondary Reviewer 或 Claude Sonnet 5.5 Reviewer Escalation，完全按 `model-routing.md` 中的风险条件决定。
+是否启动 Secondary Reviewer 或 Reviewer Escalation，按 `model-routing.md` 中的风险条件和模型路由决定。
 
 满足条件时：
 
@@ -68,18 +70,18 @@ Primary Reviewer 必须：
 
 ## 5. Visual Verification
 
-实际承担视觉实现的 Agent 必须加载逻辑 Skill `ui-impl`。通过 Herdr `agent prompt` 向 Pi Implementer 触发时，使用 `/skill:ui-impl` 显式加载已安装的 Skill。通用实现流程、权限和交付要求以 Core Task Contract 为准；上游 `implement` 是用户 / Orchestrator 显式调用的可选增强，只有其 Spec / Ticket、Tracker 和 fixed point 前置条件均满足时才使用。`ui-impl` 负责视觉分析、还原方法和浏览器验证步骤。Claude Code、Pi 交互式调用和 Herdr → Pi 调用的语法由对应 Runtime 说明。
+实际承担视觉实现的 Agent 必须加载逻辑 Skill `ui-impl`，其为 REQUIRED 能力。它负责视觉分析、还原方法和浏览器验证；通用流程与交付要求以 Core Task Contract 为准，调用方式见 Runtime Adapter。
 
 - Visual Handoff 必须引用 `visual-report.md` 和最终截图。
 - Main 验收时检查参考图与实现截图的 Viewport、Route、页面状态和滚动位置。
 - 确认主要视觉差异已核对，剩余差异和无法验证项已记录。
 - 截图文件存在、页面运行成功或 DOM 检查通过，不能单独证明视觉验收完成。
-- 视觉模型未读取截图或未完成视觉比较时，视觉状态标记 `NOT VERIFIED`。
+- 视觉模型未读取截图或未完成视觉比较时，视觉状态标记 `NOT VERIFIED`，不放行视觉验收；必要能力缺失时暂停依赖该能力的工作并报告 Main。已完成的独立实现可保留为 PARTIAL，不把它当视觉交付 DONE。
 - 高保真或关键页面可增加独立视觉复核；复核 Agent 必须支持图片输入，读取参考图、最终截图、Viewport 和 `visual-report.md`，只报告可观察到的差异，不替代代码 Review。
 
 ## 6. Gate & Repair
 
-必需测试完成、Primary Review 完整，且所有已触发的补充审查均已完成后进入 Gate。
+必需测试完成、Primary Review 完整，且所有已触发的补充审查均已完成后进入 Gate。Main 同时核对报告披露的额外写入与已知工具写入；未解决的越界写入阻止 PASS，处理以 `permissions.md` §2 为准。事实笔误按该文件 Report Corrections 处理，不触发代码修复或整套验证；实质性判断仍由对应角色复核。
 
 存在未解决 P0/P1 时执行定向修复：
 
@@ -125,7 +127,7 @@ Main 在面向开发者的回复中先给出任务摘要、重要决策、关键
 
 - `REQUIRED` 任务在开发者明确确认前，最终 Verdict 使用 `NEEDS DEVELOPER REVIEW`，Main 暂停最终 PASS。
 - Main 不从测试通过、AI Reviewer PASS、子 Agent `DONE` 或用户沉默推断人工批准。
-- 开发者可以批准、要求修改或要求澄清。批准记录到 `overview.md`，包含确认者/确认来源、审阅的基准 Commit / 变更范围和确认结果；对话中明确批准即可作为确认依据。
+- 开发者可以批准、要求修改或要求澄清。批准记录到 `overview.md`，包含确认者、Main 会话回答或明确指定的外部批准依据、审阅的基准 Commit / 变更范围和确认结果。请求必须明确是 Developer Review；设计问答、标签选择和实施授权不代替该批准，确认范围遵循 `permissions.md`。
 - Developer Review 完成后，如果代码、决策或验收范围发生实质变化，原批准仅对旧审阅范围有效；Main 必须更新审阅包并重新请求受影响部分的确认。
 - 要求澄清时回到 Clarify，更新 `decisions.md` / `plan.md`，再执行受影响的实现和验证。
 - 要求修改时由 Main 重新界定范围并委派原 Implementer 或适当 Agent；重新执行受影响的 Test、Review 和 Gate。原有 P0/P1 自动修复轮数仍按本文件 §6 执行。
@@ -139,7 +141,7 @@ Main 依据用户目标、验收标准、实际代码、Diff、工具结果和�
 
 | Task Type | Acceptance Criteria |
 |---|---|
-| L2 Task Overview | `overview.md` 存在，产物链接和状态准确，关键变更、决策、验证、Developer Review 与未解决事项完整 |
+| L2 Task Overview | `overview.md` 顶部反映当前阶段、授权、Main 配置、Commit 和外部结果；历史事件单独记录，产物链接、关键变更、决策、验证、Developer Review 与未解决事项完整 |
 | Research | 指定产物存在且完整，关键结论具有文件位置、符号、行号或来源链接 |
 | Debug（仅诊断） | `debug-report.md` 记录可复现步骤、环境、证据、根因或未确认假设、已排除方向和建议验证；不把猜测报告为根因 |
 | Plan | 方案覆盖目标、范围、契约、兼容性、步骤、测试、风险和验收 |
@@ -171,6 +173,7 @@ Models:
 - Primary Reviewer: <实际 Provider / Model ID / Thinking 或 N/A>
 - Secondary Reviewer: <实际 Provider / Model ID / Thinking / 触发原因或 None>
 - Escalation: <实际 Provider / Model ID / Thinking / 裁决原因或 None>
+- <其他实际参与角色，如 Tester / Researcher / Expert>: <实际 Provider / Model ID / Thinking；仅参与时追加>
 
 Usage: <Pi session tokens/cost 或 N/A>
 Visual Evidence: <最终截图 / visual-report.md 路径或 N/A>
@@ -189,13 +192,14 @@ Next: <必要后续事项；没有则 None>
 - 稳定的架构边界、公共契约、关键领域规则和重大技术取舍，适合沉淀为项目 ADR / Architecture Docs。
 - 经验证的模块入口、调用链、运行方式和排障方法，适合更新项目文档或相关 `AGENTS.md`。
 - 可跨项目复用的 Agent 执行方法，适合沉淀为 `agent-workbench/skills/` 中的 Skill。
-- 一次性实现细节和短期调试过程保留在任务目录，不强行提升为长期规范。
+- 一次性实现细节和短期调试过程留在本地任务目录，默认不提交；不机械复制 Handoff、调研和检查输出到项目文档。
+- 完成时指出值得沉淀的结论、推荐位置和理由。只有当前任务明确授权的长期文档更新才直接执行；授权外仅记录候选，不扩大写入范围。
 
 长期文档更新必须遵守当前任务授权范围和项目文档约定；需要扩大修改范围时先取得用户授权。未获授权或暂不适合沉淀时，将候选项记录在 `overview.md` / `retro.md`，并说明原因。不要把所有任务报告机械复制到项目知识库。
 
 ## 11. Retro
 
-任务出现重复失败、模型路由错误、异常高成本、并行冲突或交付缺口时，Main 按本节定义的 Core Retro 范围检查流程有效性、模型与 Thinking 选择、上下文/图片/Token 成本、测试覆盖、并行和交付问题。上游 `retro` 设置 `disable-model-invocation: true`，不能由模型自主调用；Claude Code Main 由用户显式输入 `/retro`，Herdr → Pi 子 Agent 则可通过 `agent prompt` 前缀 `/skill:retro` 显式加载已安装的 parent Skill。上游正文引用的 `writing-for-agents` 等嵌套 Skill / 工具仍须单独确认可用；Pi Main 未显式调用时继续执行 Core Retro 流程，并记录到 `overview.md` / `retro.md`。长期规范或 Skill 的修改须获得用户授权。
+任务出现重复失败、模型路由错误、异常高成本、并行冲突或交付缺口时，Main 按 Core Retro 检查流程、模型与 Thinking、成本、测试覆盖、并行和交付问题，记录到 `overview.md` / `retro.md`。可选 `retro` Skill 的语法见 `runtimes/README.md`，前置条件与依赖见 `skills/README.md`；用户交互仍留在 Main。长期规范或 Skill 修改遵循当前任务授权。
 
 ## 12. Stage Budgets
 
@@ -218,7 +222,7 @@ Primary、Secondary 和 Escalation Review 共用 Review 阶段预算；启动补
 - **Hard Timeout**：Provider、Herdr、Pi、MCP、Shell 等运行时硬超时由对应运行环境控制；在 Task Contract 记录已知限制。
 - **Long-running Commands**：构建、测试、安装、服务启动和浏览器等待优先使用可轮询进程/Session。工具等待超时后先检查原进程状态和输出，再决定继续等待或重试。
 - **Partial Execution**：暂停或硬超时后检查工作区、Diff、进程/Session、产物和工具结果，明确已执行、未执行和未验证事项；从现有状态恢复。
-- **Tool Error**：工具调用最多重试一次；重试前确认操作是否已执行。长任务仍运行时优先轮询原 Session。
-- **Model Error**：检查 Provider、Model 和参数映射，使用已配置 Fallback，并记录实际结果。
+- **Tool Error**：工具调用最多重试一次；重试前确认操作是否已执行。长任务仍运行时继续观察原 Session。Agent Prompt 的 timeout / stalled 只表示等待或活动观测失败，不表示未投递；先读结构化状态和约定产物，矛盾或缺失时定向查对应 Session。核对本轮委派输入、产物更新及对应执行证据；既有同 Task / Subtask ID 的 DONE 报告不能单独证明本轮完成。无法判断投递结果时标记 `NOT VERIFIED` 并暂停重发，不把旧 turn 的完成当成本次任务完成。
+- **Model Error**：检查 Provider、Model 和参数映射，使用已配置 Fallback，并记录实际结果。Provider 错误 / 429 后的 idle 不等于交付完成；保留已完成证据，从缺失交付处恢复，不重复已成功的检查。必要报告缺失时不能通过 Gate。
 - **External Write**：按 `permissions.md` 授权和回读规则处理；非幂等操作超时后先查询当前状态。
-- **Session Cleanup**：任务完成或明确暂停后，按运行环境能力关闭不再需要的 Session / pane；保留仍需继续的会话。
+- **Session Cleanup**：任务完成或明确暂停后，仅关闭本任务创建且不再需要的 Session / pane；保留仍需继续的会话和本地证据，不清理用户或其他任务的会话。
