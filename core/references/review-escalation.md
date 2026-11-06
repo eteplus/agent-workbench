@@ -15,7 +15,7 @@
 Secondary Reviewer 执行第一轮审查时采用盲审（Blind Review）：
 
 1. 使用独立 Pi Session / 上下文。
-2. 接收与 Primary Reviewer 相同的原始需求、验收标准、`research.md` / `decisions.md`（如有）、基准 Diff、Plan / Handoff、相关项目规范和必要测试结果。
+2. 接收与 Primary Reviewer 相同的原始需求、验收标准、`research.md` / `decisions.md`（如有）、基准 Diff、Plan / Handoff、相关项目规范、必要测试结果及 Implementation Evidence（格式见 `core/acceptance.md` §2）。
 3. 第一轮独立审查完成前，不提供 Primary Reviewer 的 Findings、结论或推理摘要。
 4. 独立检查完整的约定 Diff，并写入 `review-secondary.md`。
 5. 报告完成后，Main Agent 才合并两轮结果。
@@ -52,7 +52,7 @@ Secondary Review 未覆盖完整 Diff 时标记 `INCOMPLETE`，记录已覆盖�
 输入限定为：
 - 争议 Finding 及其文件、行号和复现/触发条件。
 - 原始需求、验收标准、相关接口/数据契约，以及适用的 `decisions.md` 记录。
-- 涉及的最小必要源码与 Diff。
+- 涉及的最小必要源码与 Diff，以及对应的 Implementation Evidence（见 `core/acceptance.md` §2）。
 - 已执行的 Primary / Secondary Reviewer 的实际模型、独立结论及证据；记录未执行的审查及原因。
 - 相关测试结果和已确认事实。
 

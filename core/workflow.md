@@ -37,6 +37,12 @@ Main Runtime 可以是 Claude Code 或 Pi。Runtime 与模型偏好分别配置�
 - 当前目标的调整：只更新受影响的范围、决策、计划和验收；超出授权时先确认。
 - 独立目标：建立新任务，不共用其他 Workflow 的产物根目录；无法确定归属时只澄清该歧义。
 
+### 任务语言
+
+Main 从用户实际目标确定 `Output Language`：中文目标使用中文，英文目标使用英文；用户明确指定语言时以该要求为准。入口说明、模板、引用资料和代码语言不参与判断。混合语言无法确定时只澄清语言偏好；仅有 URL 或编号时沿用用户最近的明确语言。
+
+任务语言写入 `overview.md`（无总览时保留在任务上下文）并传入每份 Contract。同一任务续接沿用，用户明确切换时更新当前产物与后续交付，历史原始证据保留原文。所有 Agent 的回复、产物标题/字段说明/正文、交接、评审、复盘及外部 Issue 文本均使用任务语言；路径、代码标识符、命令、协议字段/状态码和原始日志保持原样，引用外语证据时附任务语言解释。模板只提供结构，生成时翻译自然语言标题和字段，不照抄模板语言。
+
 同一会话已读取且仍适用的 Core 不重复加载；恢复后缺少规则或规则已变更时读取对应文件。新任务按以下顺序启动：
 
 1. 读取本文件，确认 Main 职责和总流程。
@@ -60,6 +66,8 @@ Main 在任务开始、阶段切换或阻塞时向用户简报；授权范围内
 ### Research
 
 按需启动 Repo Researcher 或 Web Researcher。内部与外部调研可以并行，使用同一任务根目录下不同交付路径；需要更细划分时使用 `subtasks/`。Research 结论区分事实、推断和待确认事项，并提供文件位置、符号、行号或来源链接。项目代码检索遵循 `core/references/code-retrieval.md`。
+
+Main 在依赖调研结论的 Plan / Implement 开始前核验关键证据及手工写入。一次性扫描器先通过覆盖本次引用形态、别名和同名异源的小型自检，再扫描仓库；数量和清单从同一结果生成。零消费证据与保留约定分别列出，未解析引用记为待确认；关键证据不足时暂停依赖它的删除或契约收缩。
 
 ### Clarify
 
@@ -108,7 +116,7 @@ Debug 任务先完成复现和根因诊断；仅诊断时，以 `debug-report.md
 ## 5. 委派原则
 
 - L0/L1 由 Main 按 `task-classification.md` 直接处理。
-- L2 代码实现由 Herdr → Pi Implementer 执行，Main 不直接实现 L2 业务代码。
+- L2 代码实现由 Herdr → Pi Implementer 执行，Main 不直接实现 L2 业务代码。Research → Implement 使用新的 Pi Session，只传最终方案、契约、候选清单及必要证据入口；修正同阶段报告或定向修复可沿用原执行 Session。
 - 独立 Research、Debug 诊断、Review、Test 根据任务需要通过 Herdr 启动 Pi 子 Agent；Debug 诊断默认只读。若诊断任务需要代码修复，按修复任务的 L0/L1/L2 规则执行。
 - 委派时使用 `task-contract.md` 定义的协议。每次只传入本次任务需要的信息；子任务沿用 Workflow Task ID，以独立 Subtask ID 区分执行，产物仍在同一个任务根目录。
 - 结构化 Agent 状态只用于协调；报告、实际 Diff 和检查结果用于验收。产物缺失、状态矛盾或 Skill 加载异常时，定向读取对应 Session 记录；TUI 屏幕仅用于终端故障诊断。
@@ -140,7 +148,7 @@ Debug 任务先完成复现和根因诊断；仅诊断时，以 `debug-report.md
 
 ## 8. 产物与状态
 
-产物生命周期、单任务根目录、`subtasks/`、写入归属和本地保存方式以 `task-contract.md` §5–6 为准。所有 L2 任务创建 `overview.md`；其他产物仅在阶段需要时创建，未触发阶段不生成空报告。总览与交接分别使用 `core/templates/overview.template.md`、`core/templates/handoff.template.md`。
+产物生命周期、单任务根目录、`subtasks/`、写入归属和本地保存方式以 `task-contract.md` §5–6 为准；生成内容遵循 §2 的任务语言规则。所有 L2 任务创建 `overview.md`；其他产物仅在阶段需要时创建，未触发阶段不生成空报告。总览与交接分别使用 `core/templates/overview.template.md`、`core/templates/handoff.template.md`。
 
 子 Agent 状态：
 

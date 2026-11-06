@@ -69,7 +69,7 @@ pnpx skills add https://github.com/mattpocock/skills \
   --skill implement --skill code-review --agent pi --global
 ```
 
-**不将第三方同名 `code-review` 安装到 Claude Code。** 它会覆盖 bundled `/code-review`（不覆盖 `/review` 别名）。正式独立审查使用 Core Reviewer；详见 [Claude Code 同名 Skill 优先级](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)。
+**不将第三方同名 `code-review` 安装到 Claude Code。** 它会覆盖 bundled `/code-review`（不覆盖 `/review` 别名）。正式独立审查使用 Core Reviewer。详见 [Claude Code 同名 Skill 优先级](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name)。
 
 ## 维护与导入
 

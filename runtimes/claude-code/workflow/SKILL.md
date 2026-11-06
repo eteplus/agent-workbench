@@ -7,7 +7,7 @@ description: Start or continue a risk-based engineering workflow as Main, delega
 
 当前 Claude Code 会话是 Main。先解析并验证 `AGENT_WORKBENCH_ROOT`，缺失或 `core/workflow.md` 不存在时报告配置问题，不猜路径。
 
-读取 `$AGENT_WORKBENCH_ROOT/core/workflow.md` §2 判断新任务、目标调整或续接。同一任务沿用 Task ID、产物根目录、阶段和已确认决策；上下文中仍适用的规则不重复加载。新任务按该节加载分类与权限，再按阶段加载所需 Core。
+读取 `$AGENT_WORKBENCH_ROOT/core/workflow.md` §2 判断新任务、目标调整或续接。同一任务沿用 Task ID、产物根目录、阶段和已确认决策；上下文中仍适用的规则不重复加载。新任务按该节从用户实际目标确定任务语言、加载分类与权限，再按阶段加载所需 Core；入口说明的语言不作为用户语言依据。
 
 按 Core 执行最小必要阶段。访谈、决策和批准在 Main；独立执行才派发子 Agent。委派前读取 `core/task-contract.md`、`core/model-routing.md` 和 `runtimes/README.md` 的 Herdr / Pi 调用协议。专项 Skill 是阶段辅助，不另起 Workflow；加载失败遵循 Contract 的 REQUIRED / OPTIONAL 规则。
 

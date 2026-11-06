@@ -40,7 +40,7 @@ Pi ──────────┘         │
 | Visual Tooling | `ui-impl`、agent-browser、图片理解能力 | 仅视觉实现任务需要 |
 | Code Retrieval | `@colbymchenry/codegraph` | 可选；不可用时使用 `rg` / `fd` / Read |
 
-建议安装 Herdr Pi Integration，以提供 Pi Session 身份、状态上报和会话恢复支持。基础 Pane / Agent 调度由 Herdr 自动化能力提供。第三方 Skills 的调用约定、依赖边界和 Issue Tracker 前置条件见 [`skills/README.md`](skills/README.md)；Runtime 调度及 Pi 嵌套依赖边界见 [`runtimes/README.md`](runtimes/README.md)。
+建议安装 Herdr Pi Integration，以提供 Pi Session 身份、状态上报和会话恢复支持。基础 Pane / Agent 调度由 Herdr 自动化能力提供。第三方 Skills 的调用约定、依赖边界和 Issue Tracker 前置条件见 [`skills/README.md`](skills/README.md)。Runtime 调度及 Pi 嵌套依赖边界见 [`runtimes/README.md`](runtimes/README.md)。
 
 ## 快速开始
 
@@ -68,7 +68,7 @@ pnpx skills add "$AGENT_WORKBENCH_ROOT/runtimes/claude-code" \
   --skill workflow --agent claude-code --global
 ```
 
-安装时选择 **Symlink**。Pi 活动 Session 执行 `/reload`；两个 Runtime 均通过 `/workflow <任务目标>` 启动。
+安装时选择 **Symlink**。Pi 活动 Session 执行 `/reload`。两个 Runtime 均通过 `/workflow <任务目标>` 启动。
 
 ### 3. 安装本仓库 Skill
 
@@ -84,7 +84,7 @@ pnpx skills add "$AGENT_WORKBENCH_ROOT/skills" \
 - Claude Code：`/workflow <任务目标>`
 - Pi：`/workflow <任务目标>`
 
-Main 按风险选择最小必要流程。后续直接说“继续”或调整目标；同一任务重复 `/workflow` 或恢复会话仍沿用 Task ID、阶段和决策，不重新启动。访谈和批准留在 Main，L2 代码实现及独立 Research / Review / Test 通过 Herdr → Pi 执行。Skill 是按需辅助，不另起工作流。
+Main 按风险选择最小必要流程。后续直接说“继续”或调整目标。同一任务重复 `/workflow` 或恢复会话仍沿用 Task ID、阶段和决策，不重新启动。访谈和批准留在 Main，L2 代码实现及独立 Research / Review / Test 通过 Herdr → Pi 执行；Research → Implement 使用新的 Pi Session。回复与生成产物跟随用户实际目标的语言，续接沿用（规则见 `core/workflow.md` §2）。Skill 是按需辅助，不另起工作流。
 
 ## 任务审阅
 
@@ -103,7 +103,7 @@ Main 按风险选择最小必要流程。后续直接说“继续”或调整目
 
 长期知识从任务结论中提炼：架构取舍写 ADR，使用、接口和排障知识更新对应文档；仅在当前授权内执行，不复制全部过程报告。历史产物不自动清理。
 
-同一轮明确列出的同类问题可批量确认，但设计确认、Developer Review 与外部写入授权不混同。高影响任务按条件进入 Developer Review；两类确认和最终 Gate 见 [`core/acceptance.md`](core/acceptance.md)。
+同一轮明确列出的同类问题可批量确认，但设计确认、Developer Review 与外部写入授权不混同。高影响任务按条件进入 Developer Review。两类确认和最终 Gate 见 [`core/acceptance.md`](core/acceptance.md)。
 
 ## 文档导航
 
@@ -124,7 +124,7 @@ Main 按风险选择最小必要流程。后续直接说“继续”或调整目
 
 Core 规则只在对应权威文件中维护；Runtime Adapter 负责加载规则和映射调用方式；Skill 只承载专项能力。修改规则时先更新唯一权威文件，再检查入口、模板和引用。
 
-使用 Node.js 22+ 运行 `node --test scripts/check-workflow.mjs` 检查文档链接与关键规则；行为验证按 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md) 执行，静态通过不代表 Runtime 已验证。
+使用 Node.js 22+ 和 Bash 运行 `node --test scripts/check-workflow.mjs` 检查文档链接、关键规则与检查命令示例的退出码/完整日志。行为验证按 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md) 执行，静态通过不代表 Runtime 已验证。
 
 ## License
 

@@ -9,7 +9,7 @@ Adapter 负责入口加载、Skill 语法和运行时调度；任务生命周期
 | Claude Code | `/workflow <目标>`，Skill | `~/.claude/skills/workflow/SKILL.md` |
 | Pi | `/workflow <目标>`，Prompt Template | `~/.pi/agent/prompts/workflow.md` |
 
-Main 和 Pi 子 Agent 通过 `AGENT_WORKBENCH_ROOT` 定位同一份仓库。入口验证环境变量和 Core；GUI / Herdr 已运行进程不一定继承后来修改的 Shell Profile。路径无效时先修配置。安装步骤见各 Adapter README。
+Main 和 Pi 子 Agent 通过 `AGENT_WORKBENCH_ROOT` 定位同一份仓库。入口验证环境变量和 Core。GUI / Herdr 已运行进程不一定继承后来修改的 Shell Profile。路径无效时先修配置。安装步骤见各 Adapter README。
 
 同一任务直接说“继续”或调整目标，重复 `/workflow` 也按 `core/workflow.md` §2 续接；不要求用户逐阶段输入命令。会话恢复读取该任务总览和必要规则，不扫描无关历史。
 
@@ -29,8 +29,8 @@ Core / Task Contract 是默认执行路径，Skill 是按需专项能力，不�
 
 ### Pi 显式委派协议
 
-1. Main 将完整 Contract 写入当前 Task Root（细分时放 `subtasks/<id>/contract.md`），指定 Repository Root、唯一交付文件、绝对允许写入路径、必要依赖和前置条件；确认目标 Agent 能读取。Task Root 是产物位置，不能用来推断代码仓库或 Workbench 的位置。
-2. 目标 Agent ready 且没有旧工作运行时才提交新任务。Core 路径直接发送“读取 <Contract 绝对路径>，按契约执行并交付”。
+1. Main 将完整 Contract 写入当前 Task Root（细分时放 `subtasks/<id>/contract.md`），指定 Repository Root、唯一交付文件、绝对允许写入路径、必要依赖和前置条件；按 `core/task-contract.md` §1 核验必需规则可访问或摘录完整。Task Root 是产物位置，不能用来推断代码仓库或 Workbench 的位置。
+2. 目标 Agent ready 且没有旧工作运行时才提交新任务。Core 路径直接发送“读取 Contract 及其必需规则：<Contract 绝对路径>，记录加载证据后按契约执行并交付”。
 3. 需要显式 Skill 时，发送一条单行消息，Skill 名称后必须有普通空格，完整任务输入通过 Contract 路径提供：
 
    ```text
@@ -40,7 +40,7 @@ Core / Task Contract 是默认执行路径，Skill 是按需专项能力，不�
    上游 `implement` 确实适用时，传入其需要的 Spec / Ticket 引用，同时在同一行附 Contract 路径；先确认 `skills/README.md` 的 Tracker / fixed point 与权限条件。
 
 4. 不把“裸 Skill 加载”与 Contract 拆成两次提交：显式 Skill 会立即启动 Agent，不是纯加载动作。当前 Pi 按普通空格分隔命令名称，换行紧跟名称的多行命令可能不展开；这一兼容限制应在升级 Pi 时重新验证。未知 Skill 可能原样传入模型，因此必须检查加载证据。
-5. 子 Agent 开始实际工作前核对 REQUIRED Skill 和依赖；模型允许加载的依赖可读取其文件，显式调用型依赖需支持的独立调用路径。REQUIRED 缺失 / 未展开时报告 Main 并停止受影响工作；OPTIONAL 失败按 Contract 披露并 fallback。Handoff 分别提供加载与执行证据，不把 parent 展开算作嵌套依赖成功。
+5. 子 Agent 开始实际工作前按 `core/task-contract.md` §1 完成必需规则和能力核验。Pi 消息是否展开，以当前展开结果和实际加载证据为准；失败语义与 REQUIRED / OPTIONAL 处理只在 Core 定义。
 
 长 Contract 放文件而不是拼入命令；路径包含空格时保持完整并明确为一个路径。Contract 约束应与所选 Skill 前置条件一致；发现冲突先报告 Main，不能先执行后补权限。
 
@@ -49,7 +49,7 @@ Core / Task Contract 是默认执行路径，Skill 是按需专项能力，不�
 以下是顺序说明，不是固定脚本；实际参数按当前安装版本核实：
 
 1. 创建或选择可用 Shell Pane，保存响应中的 Pane ID，保持用户焦点。
-2. 显式指定子 Agent 模型与 Thinking 启动 Pi；核验方法见 `core/model-routing.md`。
+2. 显式指定子 Agent 模型与 Thinking 启动 Pi；核验方法见 `core/model-routing.md`。Research → Implement 的新 Session 边界以 `core/workflow.md` §5 为准，不能只重命名 Agent 或向原 Research Session 追加实施 Contract；可复用空闲 Pane，但须核验新的 Pi Session 身份。
 3. 提交 Contract 路径（或上述单行 Skill 命令）时不要带 `--wait`：`agent prompt` 成功只代表已写入，之后用 `agent get` 确认 `working`。用 1 秒级 `--wait` 探活只会拿到必然的 timeout 非零退出，把正常投递显示成错误。
 4. 需要阻塞等待时用一个贴近任务实际时长的 `--wait` / `agent wait`（例如 `--timeout 600000`），而不是反复 120 秒轮询；状态等待不跟踪具体任务，旧 turn 的完成不能算新任务的完成。
 5. `agent get` / 结构化 API 用于协调运行、阻塞和 Session 身份；指定报告、源码、Diff 和真实检查结果用于验收。先核对 Task / Subtask ID 与交付内容，再判断本次完成。

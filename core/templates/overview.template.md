@@ -1,9 +1,12 @@
 # Task Overview
 
+> 按 Contract 的 Output Language 生成标题、字段说明与正文；本模板仅提供结构（core/workflow.md §2）。
+
 > 顶部 Status 是唯一当前状态入口；其他章节提供摘要或历史证据，不重复当前授权和下一步。续接后同步顶部，历史记录遵循 core/task-contract.md §6。
 
 ## Status
 - Task ID:
+- Output Language:
 - Task Root (absolute):
 - Repository Root (absolute):
 - Local Artifact Storage: ignored / not ignored (explain; not part of submission)
@@ -11,6 +14,7 @@
 - Current Main Runtime / Provider / Model / Thinking:
 - Current Authorization / Source:
 - Committed Changes: None / commit + scope
+- Implementation Evidence: N/A / version evidence path (core/acceptance.md §2)
 - External Operation Result: None / target + verified result
 - Current Stage:
 - Next Step:

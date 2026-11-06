@@ -1,13 +1,18 @@
 # Implementation Handoff
 
+> 按 Contract 的 Output Language 生成标题、字段说明与正文；本模板仅提供结构（core/workflow.md §2）。
+
 ## Status
 - Task ID / Subtask ID:
+- Output Language:
 - Task Root (absolute):
 - Status: DONE / PARTIAL / BLOCKED / FAILED
 - Actual Provider / Model ID / Thinking:
 - Metadata Evidence: <own Pi Shell variables / RPC state / NOT VERIFIED with reason>
+- Rule Loading Evidence: <required rules and requirement inputs + coverage + Session tool/event references + loading time; verified Runtime injection or late reads identified; core/task-contract.md §6>
 - Changed Files:
 - Base Diff / Commit:
+- Implementation Evidence: <path + associated implementation version + capture time/stage + purpose; collection sequence is not implementation version; core/acceptance.md §2>
 - Workspace Baseline / Overlap Handling:
 - Baseline Snapshot Compared (if applicable):
 
@@ -60,9 +65,11 @@
 
 ## Verification
 - Reused checks / scope / reason: None / existing evidence + unaffected scope
-| Command / Check | Result | Evidence / Notes |
-|---|---|---|
-| | | |
+| Command / Check | Scope | Implementation Evidence | Exit Code | Result | Full Log / Completion Evidence |
+|---|---|---|---|---|---|
+| | | | | | |
+
+- Background checks (if any): <PID / Session + wait/completion evidence + final exit code; core/acceptance.md §2>
 
 ## Review Focus
 - High-risk paths:

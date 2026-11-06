@@ -12,12 +12,40 @@ Main 先读取 Handoff，再检查任务范围内的实际 Diff、关键实现�
 
 ## 2. Test
 
-- Implementer 执行与修改范围直接相关的基础检查，并记录真实命令与结果。
+- Implementer 执行与修改范围直接相关的基础检查，并记录真实命令与结果。定向运行前读取项目脚本，确认追加参数确实缩小测试范围；已有宽范围过滤时使用测试工具的直接调用方式。
 - 高风险、跨模块、关键契约变更或独立验证能增加覆盖时，委派 Tester。
 - 按影响范围复用已真实执行的验证：后续改动未触及已验证代码、测试或相关配置时，保留原命令、覆盖范围和结果，只检查新增改动。影响范围改变时重跑受影响检查；注明复用理由和新增检查，不因报告或文档笔误重跑整套验证。
 - Tester 按 Task Contract 执行约定测试；未经明确授权只报告问题、不修改实现代码。
-- 测试报告必须记录实际命令、测试范围、通过/失败、未覆盖项和环境限制。
+- 测试报告必须记录实际命令、测试范围、退出码、通过/失败、完整日志路径、未覆盖项和环境限制。先将完整输出写入本角色授权证据目录，再展示摘要；工具调用必须返回原检查退出码，不能用摘要命令的成功代替检查成功。
+
+单个检查可使用以下 Bash 调用；替换绝对日志路径与检查命令，日志父目录须已在本角色授权范围内建立。摘要在包装内部完成，包装作为最终执行命令；外层不得追加 `| tail`、`|| true` 或后续成功命令覆盖失败退出码。重定向可用，但须保留退出码和完整日志。循环执行多项检查时逐项记录退出码，并以任一检查失败作为整组失败：
+
+```bash
+bash -c '
+  log=$1; shift
+  "$@" >"$log" 2>&1
+  result=$?
+  tail -n 40 "$log"
+  printf "check_exit=%s\n" "$result"
+  exit "$result"
+' _ /absolute/task/subtasks/implement/evidence/verify.log pnpm verify
+```
+
+- 长检查优先使用前台或 Runtime 可轮询任务。后台检查记录 PID / Session 标识、完整日志路径、等待完成依据与最终退出码；启动成功、进程消失或日志摘要不等于检查通过。Shell `wait` 在拥有该子进程的原执行上下文使用；跨工具调用时依靠 Runtime 完成结果或原执行者持久保存的退出码。无最终退出码标记 NOT VERIFIED，不计通过；超时后先观察原任务，恢复规则见 §13。
 - 测试场景应覆盖原始验收条件及 `decisions.md` 中已确认且可验证的行为/契约决策；无法自动验证的设计取舍列为 Developer Review 关注项。
+
+### 实现版本证据
+
+代码实现的测试、Review 与 Developer Review 使用可比较的 `Implementation Evidence`，不能以 HEAD、文件列表或增删行数相同证明实现未变：
+
+- 执行者在本角色授权证据目录保存 Base Commit、实际检查范围内相对该基准的完整二进制 Diff（`git diff --binary <base> -- <paths>`），以及参与检查的新增未跟踪文件的相对路径、存在/删除状态和内容 SHA-256；范围包含相关源码、测试与配置，生成输出和报告不作为实现输入。重叠脏文件的变更归属仍按 `task-contract.md` §3 的任务前快照核验。
+- 每项检查开始前采集证据，结束后比较同一范围，确认执行期间输入未变，再将真实命令、结果、完整日志与该版本关联。Review 报告引用所审查版本；人工审阅包和批准记录引用同一版本。各版本分文件保留，后续采集不覆盖旧证据，并注明对应实现版本、采集时间/阶段、用途（过程检查 / 最终验收）与生成命令；各角色采集序号不等于实现版本，报告按内容及明确关联核对，不从文件名推断。
+- 工作中采集的证据可用于过程检查。Main 的最终验收证据在相关实现写入结束、输入稳定后采集，并记录实施者停止相关实现写入的依据；working 中的报告存在不证明写入结束，仅报告排版仍在进行不妨碍已停止写入的实现核验。
+- Main 在复用检查、续接、最终 Acceptance 及确认用户提交内容时，比较当前完整 Diff 和未跟踪输入清单；最终验收同时保存并引用工作区状态快照（`task-contract.md` §3）。证据相同才复用；内容变化后记录新版本，重做受影响 Test / Review，实质变化还需重新获得受影响的 Developer Review 批准。无法确认版本对应关系时标记 NOT VERIFIED 并暂停 PASS。
+
+### 验证调度
+
+Main 单独判定验证是否可并行，不从代码文件互不相交推断验证独立。会写共享输出（如类型生成、构建目录）或读取整个工作区的检查，等相关实施完成、输入稳定后串行执行；互不共享输出且输入稳定的检查可并行。Contract 记录实际检查范围、输出位置和调度依据，不增加锁服务或独立验证框架。
 
 ## 3. Primary Review
 
@@ -32,7 +60,7 @@ Review 输入限定为：
 - 原始需求和验收标准。
 - `research.md`（如有）、`decisions.md`（如有）。
 - `plan.md`（如有）、`handoff.md`。
-- 相关项目规范和必要测试结果。
+- 相关项目规范和必要测试结果，以及与当前 Diff 对应的 Implementation Evidence（见 §2）。
 
 Reviewer 必须核对实际实现与原始需求、已确认决策及项目约定的一致性，并检查变更是否超出 Workspace Baseline 和授权路径。特别检查实现过程中是否出现未记录的产品行为、交互、架构、API 或数据契约选择；发现时作为 Finding 或待确认风险报告，并引用相关 Decision ID（如有）。
 
@@ -58,13 +86,21 @@ Primary Reviewer 必须：
 
 是否启动 Secondary Reviewer 或 Reviewer Escalation，按 `model-routing.md` 中的风险条件和模型路由决定。
 
-满足条件时：
+### Secondary Review
 
-1. 加载 `references/review-escalation.md`。
-2. 将该文件路径或相关规则交给对应 Reviewer。
-3. Secondary Reviewer 使用独立 Pi Session / 上下文，对完整约定 Diff 进行盲审。
-4. Main 合并重复 Finding，保留实质分歧，并基于源码、Diff、需求、契约和测试证据裁决。
-5. Sonnet 只处理限定的高影响争议，不重新扫描整个仓库，也不替代 Main 最终决策。
+仅在 `model-routing.md` 的 Secondary Review 条件触发时执行：
+
+1. Main 将 `references/review-escalation.md` 及同版本的审阅输入传给 Secondary Reviewer。
+2. Secondary Reviewer 使用独立 Pi Session / 上下文，对完整约定 Diff 进行盲审；完成前不接收 Primary Review 的 Findings 或结论。
+3. 交付 `review-secondary.md` 后，Main 合并重复 Finding，保留实质分歧，并基于源码、Diff、需求、契约和测试证据裁决。
+
+### Reviewer Escalation
+
+仅在 `model-routing.md` 的 Escalation 条件触发时执行，不以 Secondary Review 完成为固定前置条件：
+
+1. Main 按该文件选择实际模型及跨家族回退路径，将 `references/review-escalation.md`、争议 Finding 和最小必要版本证据传给 Escalation Reviewer。
+2. Escalation Reviewer 仅处理限定的高影响争议，写入 `review-escalation.md`，不重新扫描整个仓库，也不替代 Main 最终决策。
+3. Secondary Reviewer 不可用时，Main 按模型路由记录跳过原因并直接进入允许的定向裁决；没有可用独立 Reviewer 时由 Main 基于已有证据裁决并记录限制。仍无法确认的 P0/P1 保持 BLOCKED。
 
 普通、范围明确且风险可控的 L2 任务只执行 Primary Review。已触发的审查必须完成，或明确报告 `BLOCKED` / `PARTIAL` 和未完成原因。
 
@@ -81,7 +117,7 @@ Primary Reviewer 必须：
 
 ## 6. Gate & Repair
 
-必需测试完成、Primary Review 完整，且所有已触发的补充审查均已完成后进入 Gate。Main 同时核对报告披露的额外写入与已知工具写入；未解决的越界写入阻止 PASS，处理以 `permissions.md` §2 为准。事实笔误按该文件 Report Corrections 处理，不触发代码修复或整套验证；实质性判断仍由对应角色复核。
+必需测试完成、Primary Review 完整，且所有已触发的补充审查均已完成后进入 Gate。Main 按 §2 确认测试、Review 与当前实现版本一致，同时核对各阶段（含 Research）报告披露的额外写入与已知工具写入；未解决的越界写入阻止 PASS，处理以 `permissions.md` §2 为准。事实笔误按该文件 Report Corrections 处理，不触发代码修复或整套验证；实质性判断仍由对应角色复核。
 
 存在未解决 P0/P1 时执行定向修复：
 
@@ -128,7 +164,7 @@ Main 在面向开发者的回复中先给出任务摘要、重要决策、关键
 - `REQUIRED` 任务在开发者明确确认前，最终 Verdict 使用 `NEEDS DEVELOPER REVIEW`，Main 暂停最终 PASS。
 - Main 不从测试通过、AI Reviewer PASS、子 Agent `DONE` 或用户沉默推断人工批准。
 - 开发者可以批准、要求修改或要求澄清。批准记录到 `overview.md`，包含确认者、Main 会话回答或明确指定的外部批准依据、审阅的基准 Commit / 变更范围和确认结果。请求必须明确是 Developer Review；设计问答、标签选择和实施授权不代替该批准，确认范围遵循 `permissions.md`。
-- Developer Review 完成后，如果代码、决策或验收范围发生实质变化，原批准仅对旧审阅范围有效；Main 必须更新审阅包并重新请求受影响部分的确认。
+- 批准绑定审阅包的 Implementation Evidence（代码任务，见 §2），不是只绑定 Base Commit 或文件范围。Developer Review 完成后，如果代码、决策或验收范围发生实质变化，原批准仅对旧审阅范围有效；Main 必须更新审阅包并重新请求受影响部分的确认。
 - 要求澄清时回到 Clarify，更新 `decisions.md` / `plan.md`，再执行受影响的实现和验证。
 - 要求修改时由 Main 重新界定范围并委派原 Implementer 或适当 Agent；重新执行受影响的 Test、Review 和 Gate。原有 P0/P1 自动修复轮数仍按本文件 §6 执行。
 - `RECOMMENDED` / `NOT REQUIRED` 任务由 Main 按已有证据完成验收；开发者随时可以要求进入人工审阅。
@@ -142,7 +178,7 @@ Main 依据用户目标、验收标准、实际代码、Diff、工具结果和�
 | Task Type | Acceptance Criteria |
 |---|---|
 | L2 Task Overview | `overview.md` 顶部反映当前阶段、授权、Main 配置、Commit 和外部结果；历史事件单独记录，产物链接、关键变更、决策、验证、Developer Review 与未解决事项完整 |
-| Research | 指定产物存在且完整，关键结论具有文件位置、符号、行号或来源链接 |
+| Research | 指定产物存在且完整，关键结论有位置或来源证据，手工写入核验完成；涉及消费扫描时，自检/限制、零消费与保留依据可核验，数量一致 |
 | Debug（仅诊断） | `debug-report.md` 记录可复现步骤、环境、证据、根因或未确认假设、已排除方向和建议验证；不把猜测报告为根因 |
 | Plan | 方案覆盖目标、范围、契约、兼容性、步骤、测试、风险和验收 |
 | Implement | 实际 Diff 符合任务范围；Handoff 完整，包含 Implementation Walkthrough 和适用时的 Skill Loading & Execution 记录；检查结果真实 |
@@ -150,7 +186,7 @@ Main 依据用户目标、验收标准、实际代码、Diff、工具结果和�
 | Test | 测试命令真实执行，结果、失败、未覆盖范围和环境限制明确 |
 | Visual Implementation | `visual-report.md` 和最终截图存在且可读取；参考图与实现图的 Viewport、Route、状态和滚动位置一致，或差异已披露；主要视觉差异、剩余问题及无法验证项均有记录 |
 | Developer Review | 所有 `REQUIRED` 项均有明确开发者确认；未确认时 Verdict 为 `NEEDS DEVELOPER REVIEW` |
-| All tasks | 业务行为符合预期，修改范围和接口/数据契约符合约定，必需测试已执行，风险及用户决策已披露 |
+| All tasks | 业务行为符合预期，修改范围和接口/数据契约符合约定，必需测试已执行，风险及用户决策已披露；回复和生成产物符合 Output Language（见 workflow.md §2），前序基线证据未被后续结果覆盖 |
 
 子 Agent 的 `DONE` 只有在 Main 完成上述验收后才能作为任务完成依据。
 
@@ -175,13 +211,15 @@ Models:
 - Escalation: <实际 Provider / Model ID / Thinking / 裁决原因或 None>
 - <其他实际参与角色，如 Tester / Researcher / Expert>: <实际 Provider / Model ID / Thinking；仅参与时追加>
 
-Usage: <Pi session tokens/cost 或 N/A>
+Usage: <各实际参与 Pi Session 的可用 tokens/cost；无法获取时 N/A 并说明原因>
 Visual Evidence: <最终截图 / visual-report.md 路径或 N/A>
 Developer Review Requirement: <REQUIRED / RECOMMENDED / NOT REQUIRED>
 Developer Review Status: <PENDING / APPROVED / CHANGES REQUESTED / CLARIFICATION REQUIRED / SKIPPED / N/A>
 Unresolved: <风险、未覆盖测试、未验证事项；没有则 None>
 Next: <必要后续事项；没有则 None>
 ```
+
+Runtime、模型和 Usage 从实际元数据生成；会话已有 usage 数据时汇总可用字段，并区分缓存读取与新增输入，不从 token 数推断未知费用。最终文本遵循 `workflow.md` §2 的任务语言规则，以上字段名仅为结构参考。
 
 `PASS` 必须同时满足：所有必需验收条件满足、必需测试真实执行、Review 完整通过、没有未解决 P0/P1、必要用户决策已完成，且所有 `REQUIRED` Developer Review 已获得明确批准。
 

@@ -1,5 +1,7 @@
 # Decisions
 
+> 按 Contract 的 Output Language 生成标题、字段说明与正文；本模板仅提供结构（core/workflow.md §2）。
+
 > 仅记录会影响产品行为、交互、架构、接口/数据契约、安全、兼容性、迁移或长期维护的实质性选择。日常局部实现细节无需逐项记录。
 
 ## Decision Register

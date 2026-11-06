@@ -308,9 +308,9 @@ A visually accurate static screenshot does not prove that the component's behavi
 
 ## 11. Handoff and Visual Report
 
-Write all visual artifacts to the task artifact directory defined by the Workflow and supplied in the Task Contract.
+Write visual reports and screenshots to the exact absolute paths assigned in the Task Contract, within its Task Root.
 
-The task owner supplies an absolute Task Root; its layout is:
+The following is the default layout for a single visual implementation, used only when selected by the Task Contract:
 
 ```text
 <Task Root>/
@@ -321,9 +321,9 @@ The task owner supplies an absolute Task Root; its layout is:
     └── final.png
 ```
 
-Use the exact `<task-id>` and artifact path provided by the task owner. Keep `visual-report.md` at the task directory root and place all generated screenshots under `screenshots/`. Use descriptive filenames when capturing additional viewports or states, for example `mobile-final.png` or `dialog-open-final.png`.
+For parallel visual subtasks, follow their distinct Contract report and screenshot paths, including paths under `subtasks/<subtask-id>/`. Use descriptive filenames when capturing additional viewports or states, for example `mobile-final.png` or `dialog-open-final.png`.
 
-Do not create a separate `.artifacts/` directory or an independent artifact tree for this task. When the Task Contract omits the task artifact path or Task ID, request it from the task owner before saving deliverables. Prefer referencing the original user-provided reference image path; copy it into the task directory only when explicitly required and permitted.
+Keep artifacts within the assigned Task Root. When the Task Contract omits the Task ID, Task Root, or report / screenshot output paths, request them from the task owner before saving deliverables. Prefer referencing the original user-provided reference image path; copy it into the task directory only when explicitly required and permitted.
 
 Use this report structure:
 
