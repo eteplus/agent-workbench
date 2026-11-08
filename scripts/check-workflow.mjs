@@ -1,6 +1,6 @@
-// Document checks and a Bash example regression; neither proves Agent runtime behavior.
+// Structural document checks and executable evidence examples; neither runs an Agent.
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
@@ -16,176 +16,116 @@ const docs = ['README.md', ...['core', 'runtimes', 'skills', 'tests'].flatMap(
     .map((path) => `${folder}/${path}`),
 )];
 
-// shortcut: links in fenced examples are checked too; add fence parsing if a real example causes a false failure.
-test('local document links resolve', () => {
+// shortcut: checks include fenced examples and plain heading slugs; extend for explicit IDs or duplicate slugs when used.
+test('local Markdown links and heading targets resolve', () => {
   for (const path of docs) {
     for (const [, target] of read(path).matchAll(/\[[^\]]*\]\(([^)]+)\)/g)) {
-      if (target.includes('://') || target.startsWith('#')) continue;
-      assert.ok(existsSync(resolve(root, dirname(path), target.split('#')[0])), `${path}: ${target}`);
+      if (target.includes('://')) continue;
+      const [file, anchor] = target.split('#');
+      const destination = file ? resolve(root, dirname(path), file) : resolve(root, path);
+      assert.ok(existsSync(destination), `${path}: ${target}`);
+      if (anchor) {
+        const headings = readFileSync(destination, 'utf8').split('\n')
+          .filter((line) => /^#{1,6} /.test(line))
+          .map((line) => line.replace(/^#+ /, '').toLowerCase().replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s/g, '-'));
+        assert.ok(headings.includes(decodeURIComponent(anchor)), `${path}: ${target}`);
+      }
     }
   }
 });
 
-test('Core dispatch and loading paths resolve from the Workbench root', () => {
-  for (const path of ['core/workflow.md', 'core/task-contract.md']) {
-    const text = read(path);
-    assert.ok(!text.includes('`references/'), `${path}: ambiguous dispatch path`);
-    assert.ok(!text.includes('按 references/'), `${path}: ambiguous retrieval path`);
-    const targets = [...text.matchAll(/`((?:core|runtimes|skills)\/[^`<>]+\.md)`/g)]
-      .map(([, target]) => target);
-    assert.ok(targets.length, `${path}: loading paths missing`);
-    for (const target of targets) {
+test('Workbench file and numbered-section pointers resolve', () => {
+  for (const path of docs) {
+    for (const [, target, sections] of read(path).matchAll(/`((?:core|runtimes|skills)\/[^`<>]+\.md)`(?: §(\d[\d.§、–,\- ]*))?/g)) {
       assert.ok(existsSync(resolve(root, target)), `${path}: ${target}`);
+      for (const section of sections?.match(/\d+(?:\.\d+)?/g) ?? []) {
+        const escaped = section.replaceAll('.', '\\.');
+        assert.match(read(target), new RegExp(`^#{1,6} ${escaped}[. ]`, 'm'), `${path}: ${target} §${section}`);
+      }
     }
-  }
-  const workflow = read('core/workflow.md');
-  for (const template of ['overview', 'handoff']) {
-    assert.ok(workflow.includes(`core/templates/${template}.template.md`), `Missing ${template} template pointer`);
   }
 });
 
-test('runtime entries delegate to Core', () => {
+test('runtime entries and Skill frontmatter retain their interface', () => {
   for (const path of ['runtimes/pi/workflow.md', 'runtimes/claude-code/workflow/SKILL.md']) {
     const text = read(path);
-    for (const required of ['AGENT_WORKBENCH_ROOT', 'core/workflow.md', '续接', 'Task ID', 'runtimes/README.md', 'REQUIRED / OPTIONAL', '任务语言', '用户实际目标']) {
-      assert.ok(text.includes(required), `${path}: missing ${required}`);
-    }
-    assert.ok(!text.includes('再附 Task Contract'), path);
-    assert.ok(!text.includes('/skill:grill-with-docs'), path);
+    assert.ok(text.includes('AGENT_WORKBENCH_ROOT'), path);
+    assert.ok(text.includes('core/workflow.md'), path);
+    assert.ok(text.includes('runtimes/README.md'), path);
+  }
+  assert.match(read('runtimes/pi/workflow.md'), /\$\{@:-[^}]+\}/);
+  for (const [path, name] of [['runtimes/claude-code/workflow/SKILL.md', 'workflow'], ['skills/ui-impl/SKILL.md', 'ui-impl']]) {
+    const frontmatter = read(path).match(/^---\n([\s\S]*?)\n---/);
+    assert.ok(frontmatter, path);
+    assert.match(frontmatter[1], new RegExp(`^name: ${name}$`, 'm'));
+    assert.match(frontmatter[1], /^description: .+/m);
   }
 });
 
-test('Skill dispatch examples keep the Contract on one line', () => {
+test('explicit Skill dispatch examples keep one command and Contract input', () => {
   const commands = [...read('runtimes/README.md').matchAll(/```text\n([\s\S]*?)\n[ \t]*```/g)]
-    .map(([, block]) => block.trim())
-    .filter((block) => block.startsWith('/skill:'));
-  assert.ok(commands.length, 'Explicit dispatch example missing');
+    .map(([, block]) => block.trim()).filter((block) => block.startsWith('/skill:'));
+  assert.ok(commands.length);
   for (const command of commands) {
     assert.ok(!command.includes('\n'), command);
     assert.match(command, /^\/skill:[a-z0-9-]+ .+Contract/);
   }
 });
 
-test('artifact, approval, fallback and metadata rules are present', () => {
+test('classification, role loading and Contract fields retain their structure', () => {
+  const levels = [...read('core/task-classification.md').matchAll(/^\| (L[012]) \|/gm)].map(([, level]) => level);
+  assert.deepEqual(levels, ['L0', 'L1', 'L2']);
   const contract = read('core/task-contract.md');
-  for (const rule of ['一个 Workflow 任务只有一个', 'subtasks/<subtask-id>/', '唯一写入负责人', 'USER_APPROVED', 'Main 会话', 'REQUIRED 不得使用 CORE_FALLBACK', '授权目标 Agent 用 printf']) {
-    assert.ok(contract.includes(rule), `Contract: missing ${rule}`);
+  const fields = contract.match(/```text\n([\s\S]*?)\n```/);
+  assert.ok(fields);
+  for (const field of ['Task ID', 'Subtask ID', 'Task Root', 'Repository Root', 'Agent Role', 'Task Type', 'Goal', 'Output Language', 'Skills', 'References', 'Workspace Baseline', 'Scope', 'Implementation Evidence', 'Time Budget', 'Deliverables', 'Constraints', 'Acceptance Criteria', 'Decision Authority', 'Developer Review Requirement']) {
+    assert.match(fields[1], new RegExp(`^${field}:`, 'm'));
   }
-  assert.ok(read('core/permissions.md').includes('批准只覆盖该轮问题'));
-  assert.ok(read('core/acceptance.md').includes('暂停重发'));
-  const routing = read('core/model-routing.md');
-  assert.ok(routing.includes('PI_REASONING_LEVEL'));
-  assert.ok(!routing.includes('PI_THINKING_LEVEL'));
-});
-
-test('任务语言贯穿 Contract、模板与验收定义（静态）', () => {
-  const workflow = read('core/workflow.md');
-  for (const rule of ['Output Language', '中文目标使用中文', '英文目标使用英文', '原始日志保持原样']) {
-    assert.ok(workflow.includes(rule), `Workflow: missing ${rule}`);
-  }
-  assert.ok(read('core/task-contract.md').includes('Output Language:'));
-  for (const template of ['overview', 'handoff', 'decisions']) {
-    const content = read(`core/templates/${template}.template.md`);
-    assert.ok(content.includes('Output Language'), template);
-    assert.ok(content.includes('core/workflow.md §2'), template);
-  }
-  assert.ok(read('core/acceptance.md').includes('生成产物符合 Output Language'));
-  assert.ok(read('core/permissions.md').includes('写入前校验最终文本'));
-});
-
-test('阶段写入、基线与新实施会话规则连通（静态）', () => {
-  assert.ok(read('core/task-contract.md').includes('所有阶段报告（包括 Research'));
-  assert.ok(read('core/task-contract.md').includes('基线与修改后证据分文件保存'));
-  assert.ok(read('core/workflow.md').includes('Research → Implement 使用新的 Pi Session'));
-  assert.ok(read('runtimes/README.md').includes('核验新的 Pi Session 身份'));
-  assert.ok(read('core/acceptance.md').includes('含 Research'));
-  const scenarios = read('tests/workflow-scenarios.md');
-  for (const scenario of ['中文 / English 完整交付', '前序基线保护', '连续任务临时路径碰撞']) {
-    assert.ok(scenarios.includes(scenario), scenario);
+  assert.match(fields[1], /^Skills:.*Source Path/m);
+  for (const role of ['Implementer', 'Reviewer', 'Tester']) {
+    assert.match(contract, new RegExp(`^\\| ${role} \\| .*core/acceptance\\.md`, 'm'));
   }
 });
 
-test('通用交付独立于 Handoff，决策记录由 Main 写入（静态）', () => {
-  const contract = read('core/task-contract.md');
-  const common = contract.match(/### 通用交付规则\n([\s\S]*?)(?=\n### )/);
-  assert.ok(common, '通用交付规则应是独立小节');
-  for (const rule of ['所有阶段报告', 'Output Language', '源码、Diff、测试输出', '交付位置使用绝对路径']) {
-    assert.ok(common[1].includes(rule), `通用交付缺少 ${rule}`);
-  }
-  const handoff = contract.match(/### `handoff.md`：实现理解\n([\s\S]*?)(?=\n## )/);
-  assert.ok(handoff);
-  assert.ok(!handoff[1].includes('所有阶段报告'));
-  assert.ok(contract.includes('Main 负责更新 `decisions.md`'));
-  assert.ok(!contract.includes('Main 或 Agent 在实施期间'));
+test('report templates retain evidence and controlled status fields', () => {
+  const handoff = read('core/templates/handoff.template.md');
+  for (const field of ['启动核验', 'Implementation Evidence']) assert.match(handoff, new RegExp(`^- ${field}:`, 'm'));
+  for (const status of ['DONE', 'PARTIAL', 'BLOCKED', 'FAILED']) assert.ok(handoff.includes(status));
+  const decisions = read('core/templates/decisions.template.md');
+  for (const status of ['USER_APPROVED', 'PROJECT_CONVENTION', 'AGENT_PROPOSAL', 'PROPOSED', 'CONFIRMED', 'REJECTED', 'DEFERRED']) assert.ok(decisions.includes(status));
+  for (const field of ['Product / Domain Approval', '批准', '证据']) assert.match(decisions, new RegExp(`^- ${field}:`, 'm'));
+  assert.match(read('core/templates/overview.template.md'), /^- External Delivery:/m);
+  const visual = read('skills/ui-impl/references/visual-report.template.md');
+  assert.match(visual, /^\| Required State \|/m);
+  assert.match(visual, /^- Visual verification:/m);
 });
 
-test('视觉交付服从 Contract，并行章节引用工作区规则（静态）', () => {
-  const visual = read('skills/ui-impl/SKILL.md');
-  assert.ok(visual.includes('exact absolute paths assigned in the Task Contract'));
-  assert.ok(visual.includes('default layout for a single visual implementation'));
-  assert.ok(visual.includes('subtasks/<subtask-id>/'));
-  assert.ok(!visual.includes('Keep `visual-report.md` at the task directory root'));
-  const parallel = read('core/permissions.md').match(/## 5. Parallel Work\n([\s\S]*?)(?=\n## )/);
-  assert.ok(parallel);
-  assert.ok(parallel[1].includes('本文件 §2'));
-  assert.ok(!parallel[1].includes('由 Main 先取得用户明确授权'));
-});
-
-test('委派必需规则、版本证据和验证调度连通（静态）', () => {
-  const contract = read('core/task-contract.md');
-  assert.ok(contract.includes('必需通用规则'));
-  assert.ok(contract.includes('core/task-contract.md` §1、§6–7'));
-  assert.ok(contract.includes('core/permissions.md` §2–4'));
-  assert.ok(contract.includes('加载证据'));
-  assert.ok(contract.includes('Implementation Evidence:'));
-  assert.ok(read('core/templates/handoff.template.md').includes('Rule Loading Evidence:'));
-  for (const path of ['core/templates/overview.template.md', 'core/templates/handoff.template.md']) {
-    assert.ok(read(path).includes('Implementation Evidence'), path);
-  }
-  const acceptance = read('core/acceptance.md');
-  for (const rule of ['完整二进制 Diff', '未跟踪文件', 'SHA-256', '不能以 HEAD、文件列表或增删行数', '共享输出']) {
-    assert.ok(acceptance.includes(rule), `验收缺少 ${rule}`);
-  }
-  assert.ok(read('core/permissions.md').includes('验证并行条件见 `acceptance.md` §2'));
-  const runtime = read('runtimes/README.md');
-  assert.ok(runtime.includes('读取 Contract 及其必需规则'));
-  assert.ok(!runtime.includes('REQUIRED 缺失 / 未展开时报告 Main 并停止受影响工作'));
-});
-
-test('Secondary 与 Escalation 是独立条件分支（静态）', () => {
-  const acceptance = read('core/acceptance.md');
-  const escalation = acceptance.match(/### Reviewer Escalation\n([\s\S]*?)(?=\n## )/);
-  assert.ok(acceptance.includes('### Secondary Review\n'));
-  assert.ok(escalation, '缺少独立 Escalation 分支');
-  assert.ok(!escalation[1].includes('Secondary Reviewer 使用独立'));
-  assert.ok(escalation[1].includes('不以 Secondary Review 完成为固定前置条件'));
-  assert.ok(escalation[1].includes('Main'));
-  assert.ok(!acceptance.includes('Sonnet 只处理'));
-});
-
-test('加载证据关联实际事件、需求输入与 Main 顺序抽查（静态）', () => {
-  const contract = read('core/task-contract.md');
-  for (const rule of ['原始需求正文及验收标准', '实际覆盖范围', '工具调用/事件位置', 'Runtime 自动注入', '行数统计', '补读如实标明', '首次相关写入/检查', '复核受影响工作']) {
-    assert.ok(contract.includes(rule), `加载规则缺少 ${rule}`);
-  }
-  const template = read('core/templates/handoff.template.md');
-  assert.ok(template.includes('Session tool/event references'));
-  assert.ok(template.includes('requirement inputs'));
-  const scenarios = read('tests/workflow-scenarios.md');
-  for (const scenario of ['加载声明与事件矛盾', '需求正文晚读', '检查包装外层抵消', '后台检查无退出码']) {
-    assert.ok(scenarios.includes(scenario), scenario);
-  }
-});
-
-test('检查状态、采集用途与工作区原始快照规则连通（静态）', () => {
-  const acceptance = read('core/acceptance.md');
-  for (const rule of ['包装作为最终执行命令', '后续成功命令覆盖失败退出码', '重定向可用', '等待完成依据与最终退出码', '原执行上下文', '无最终退出码标记 NOT VERIFIED', '各角色采集序号不等于实现版本', '用途（过程检查 / 最终验收）', '停止相关实现写入的依据', '最终验收同时保存并引用工作区状态快照']) {
-    assert.ok(acceptance.includes(rule), `检查与证据规则缺少 ${rule}`);
-  }
-  assert.ok(read('core/task-contract.md').includes('git status --porcelain -uall'));
-  assert.ok(read('core/templates/handoff.template.md').includes('Background checks (if any)'));
-  for (const scenario of ['采集序号与实现版本', '过程与最终证据']) {
-    assert.ok(read('tests/workflow-scenarios.md').includes(scenario), scenario);
+test('structural checks reject broken file and section pointers', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'workbench-docs-'));
+  try {
+    for (const path of [...docs, 'LICENSE', 'scripts/check-workflow.mjs', 'scripts/run-check.sh']) {
+      const destination = join(dir, path);
+      mkdirSync(dirname(destination), { recursive: true });
+      writeFileSync(destination, read(path));
+    }
+    const env = { ...process.env };
+    delete env.NODE_TEST_CONTEXT; // Run the copied fixture outside the parent node:test runner.
+    const clean = spawnSync(process.execPath, ['--test', '--test-name-pattern', 'local Markdown links|Workbench file and numbered-section', join(dir, 'scripts/check-workflow.mjs')], { encoding: 'utf8', env });
+    assert.ifError(clean.error);
+    assert.equal(clean.status, 0, clean.stdout + clean.stderr);
+    for (const [suffix, pattern] of [
+      ['\n[broken](core/missing.md)\n', 'local Markdown links'],
+      ['\n`core/acceptance.md` §1–99\n', 'Workbench file and numbered-section'],
+    ]) {
+      writeFileSync(join(dir, 'README.md'), read('README.md') + suffix);
+      const result = spawnSync(process.execPath, ['--test', '--test-name-pattern', pattern, join(dir, 'scripts/check-workflow.mjs')], { encoding: 'utf8', env });
+      assert.ifError(result.error);
+      assert.equal(result.status, 1, result.stdout + result.stderr);
+      assert.match(result.stdout, suffix.includes('missing.md') ? /core\/missing\.md/ : /§99/);
+      assert.match(result.stdout, /not ok/);
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });
 
@@ -237,40 +177,59 @@ test('后台检查的启动成功不代表完成，原上下文 wait 保留最�
   }
 });
 
-test('文档中的检查调用保留真实退出码和完整日志', () => {
-  const match = read('core/acceptance.md').match(/```bash\nbash -c '([\s\S]*?)' _ /);
-  assert.ok(match, '缺少可执行的检查示例');
+test('共享检查入口保留成功、预期失败和普通失败的退出码与完整日志', () => {
+  const example = read('core/acceptance.md').match(/```bash\nbash "\$AGENT_WORKBENCH_ROOT\/(scripts\/run-check\.sh)" /);
+  assert.ok(example, '缺少共享入口示例');
+  const runner = resolve(root, example[1]);
   const dir = mkdtempSync(join(tmpdir(), 'workbench-check-'));
   try {
-    for (const code of [0, 7]) {
-      const log = join(dir, `exit-${code}.log`);
-      const result = spawnSync('bash', ['-c', match[1], '_', log, 'bash', '-c',
+    for (const code of [0, 1, 7]) {
+      const log = join(dir, `exit ${code}.log`);
+      const result = spawnSync('bash', [runner, log, 'bash', '-c',
         `printf 'line-%s\\n' {1..60}; printf 'stderr-marker\\n' >&2; exit ${code}`], { encoding: 'utf8' });
       assert.ifError(result.error);
       assert.equal(result.status, code);
       const full = readFileSync(log, 'utf8');
-      assert.ok(full.startsWith('line-1\n'));
-      assert.ok(full.includes('line-60\nstderr-marker\n'));
       assert.equal(full.trim().split('\n').length, 61);
-      assert.ok(!result.stdout.includes('line-1\n'), '摘要应只显示尾部');
+      assert.ok(full.startsWith('line-1\n') && full.endsWith('line-60\nstderr-marker\n'));
+      assert.ok(!result.stdout.includes('line-1\n'));
       assert.ok(result.stdout.includes(`check_exit=${code}`));
       if (code === 7) {
         for (const suffix of ['2>&1 | tail -40', '|| true', '; printf "summary-only\\n"']) {
-          const masked = spawnSync('bash', ['-c', `bash -c "$1" _ "$2" bash -c "$3" ${suffix}`,
-            '_', match[1], log, 'printf "failed-check\\n"; exit 7'], { encoding: 'utf8' });
+          const masked = spawnSync('bash', ['-c', `bash "$1" "$2" bash -c "$3" ${suffix}`,
+            '_', runner, log, 'printf "failed-check\\n"; exit 7'], { encoding: 'utf8' });
           assert.ifError(masked.error);
-          assert.equal(masked.status, 0, `${suffix}: 外层命令会抵消失败`);
+          assert.equal(masked.status, 0, `${suffix}: 调用方仍能掩盖退出码`);
           assert.ok(masked.stdout.includes('check_exit=7'));
           assert.equal(readFileSync(log, 'utf8'), 'failed-check\n');
         }
         const summary = join(dir, 'summary.log');
-        const redirected = spawnSync('bash', ['-c', 'bash -c "$1" _ "$2" bash -c "$3" > "$4"',
-          '_', match[1], log, 'printf "failed-check\\n"; exit 7', summary], { encoding: 'utf8' });
+        const redirected = spawnSync('bash', ['-c', 'bash "$1" "$2" bash -c "$3" > "$4"',
+          '_', runner, log, 'printf "failed-check\\n"; exit 7', summary], { encoding: 'utf8' });
         assert.ifError(redirected.error);
-        assert.equal(redirected.status, 7, '单纯重定向保留失败退出码');
+        assert.equal(redirected.status, 7);
         assert.ok(readFileSync(summary, 'utf8').includes('check_exit=7'));
-        assert.equal(readFileSync(log, 'utf8'), 'failed-check\n');
       }
+    }
+    const directExit = spawnSync('bash', [runner, join(dir, 'builtin.log'), 'exit', '7'], { encoding: 'utf8' });
+    assert.ifError(directExit.error);
+    assert.equal(directExit.status, 7);
+    assert.match(directExit.stdout, /check_exit=7/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('日志参数无效或无法打开时不执行检查', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'workbench-log-'));
+  try {
+    const runner = resolve(root, 'scripts/run-check.sh');
+    const marker = join(dir, 'started');
+    for (const args of [[], ['relative.log'], [join(dir, 'missing', 'check.log')]]) {
+      const result = spawnSync('bash', [runner, ...args, ...(args.length ? ['bash', '-c', 'touch "$1"', '_', marker] : [])], { encoding: 'utf8', cwd: dir });
+      assert.ifError(result.error);
+      assert.equal(result.status, 2);
+      assert.ok(!existsSync(marker));
     }
   } finally {
     rmSync(dir, { recursive: true, force: true });

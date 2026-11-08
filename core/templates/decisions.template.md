@@ -1,55 +1,34 @@
-# Decisions
+# 决策记录
 
-> 按 Contract 的 Output Language 生成标题、字段说明与正文；本模板仅提供结构（core/workflow.md §2）。
+> 本模板只提供结构：自然语言内容按 Output Language 生成（core/workflow.md §2）。只记录实质性选择，默认使用紧凑条目。
 
-> 仅记录会影响产品行为、交互、架构、接口/数据契约、安全、兼容性、迁移或长期维护的实质性选择。日常局部实现细节无需逐项记录。
+## 决策登记
 
-## Decision Register
+### D-001: <决策标题>
 
-### D-001: <Decision Title>
+- 问题 / 选项: <问题；可行选项及关键差别>
+- 决定 / 理由 / 取舍: <决定、理由与代价>
+- 影响: <受影响的行为、契约、兼容性或维护边界>
+- 负责人 / Origin: <实际负责人> / USER_APPROVED | PROJECT_CONVENTION | AGENT_PROPOSAL
+- Status: PROPOSED | CONFIRMED | REJECTED | DEFERRED
+- Product / Domain Approval: NOT_REQUIRED | PENDING | APPROVED | REJECTED
+- 批准: <确认者、确认类型/问题 ID/范围；不适用时 N/A>
+- 证据: <Main 中的具体问题、推荐版本与回答，或指定的外部批准依据；相关需求、项目约定和源码/调研入口>
+- 后续: <待确认、验证、文档更新或迁移事项；无则 None>
 
-- **Type:** PRODUCT / INTERACTION / ARCHITECTURE / API / DATA / SECURITY / COMPATIBILITY / PERFORMANCE / OPERATIONS / OTHER
-- **Origin:** USER_APPROVED / PROJECT_CONVENTION / AGENT_PROPOSAL
-- **Decision Owner:** USER / PRODUCT_OWNER / DOMAIN_OWNER / TECHNICAL_OWNER / MAIN_AGENT（填写实际负责人；项目约定记录在 Origin / Evidence）
-- **Status:** PROPOSED / CONFIRMED / REJECTED / DEFERRED
-- **Product / Domain Approval:** NOT_REQUIRED / PENDING / APPROVED / REJECTED
-- **Approved By:** <用户 / 产品负责人 / 领域负责人；不适用时 N/A>
-- **Approval Evidence:** <Main 会话具体问题 / 推荐版本 / 用户回答，或用户指定的外部批准依据>
-- **Approval Scope:** <本次确认的类型、问题 ID 和范围；不覆盖其他门禁或新决策>
-- **Affected Areas:**
+## 详细决策（按条件）
 
-#### Context
-<原始需求、现有系统约束和研究证据。>
+只有重大架构、迁移或有实质争议的决定，在对应条目后追加：
 
-#### Problem
-<需要作出选择的问题。>
+- 背景: <当前系统、原始目标与约束>
+- 方案比较: <各方案的收益、代价、风险与证据；排除原因>
+- 兼容性 / 回滚: <兼容性、迁移顺序和回滚>
+- 验证: <如何证明决定满足目标；未验证的假设>
 
-#### Options
-- Option A: <说明及影响>
-- Option B: <说明及影响>
+责任、来源、状态和批准证据只保留在紧凑条目中。PROPOSED 表示尚未批准；Developer Review 与 Product / Domain Approval 分开记录。
 
-#### Decision
-<选择结果；PROPOSED 状态必须明确标注为待确认。>
+## 延后与未决决策
 
-#### Rationale
-<选择依据及与原始意图的对应关系。>
-
-#### Trade-offs
-<收益、代价、限制及后续影响。>
-
-#### Evidence
-- Research: <路径 / 行号 / 来源>
-- Project Convention: <路径 / 行号>
-- Related Requirement: <需求位置>
-
-#### Follow-up
-<需要业务确认、技术复核、代码验证、文档更新或后续迁移的事项。>
-
-> Product / Domain Approval 与 Developer Review 分开记录。Developer Review 的通过不能将待批准的业务决策自动改为 APPROVED。
-
----
-
-## Deferred / Unresolved Decisions
-| ID | Question | Options | Impact | Owner | Next Action |
-|---|---|---|---|---|---|
-| | | | | | |
+| ID | 未决问题 | 负责人 | 下一步 |
+|---|---|---|---|
+| | | | |

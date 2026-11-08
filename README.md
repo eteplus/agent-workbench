@@ -1,6 +1,6 @@
 # Agent Workbench
 
-面向个人开发环境的多 Runtime Agent 工作流仓库。支持 **Claude Code 或 Pi 担任 Main Agent**，通过 **Herdr → Pi Agent** 委派需要独立上下文的子任务。
+面向个人开发环境的多 Runtime Agent 工作流仓库。支持 **Claude Code 或 Pi 担任 Main**，通过 **Herdr → Pi Agent** 委派需要独立上下文的子任务。
 
 > **项目状态**：本工作流仍在持续完善，来自维护者个人的 Agent 开发实践，主要适配当前维护者的工具和工作习惯。内容仅供参考与学习，请结合自身项目和风险偏好调整。
 
@@ -21,7 +21,7 @@ Pi ──────────┘         │
              Main Gate / Acceptance
 ```
 
-- **Core**：任务分级、模型路由、权限、Task Contract、Review、Gate 与验收的唯一规则来源。
+- **Core**：任务分级、模型路由、权限、Task Contract、Review、Gate 与验收的唯一规则来源；术语表见 [`core/README.md`](core/README.md#术语)。
 - **Runtimes**：Claude Code Skill 与 Pi Prompt Template，共用 `/workflow` 启动 / 续接入口；调用语法只在 Adapter 定义。
 - **Herdr → Pi**：Main 管理 Pane、启动 Pi 子 Agent、传递任务并收集结果。
 - **Skills**：维护个人 Skill，并通过 Skills CLI 同步到 Agent Runtime。
@@ -40,7 +40,7 @@ Pi ──────────┘         │
 | Visual Tooling | `ui-impl`、agent-browser、图片理解能力 | 仅视觉实现任务需要 |
 | Code Retrieval | `@colbymchenry/codegraph` | 可选；不可用时使用 `rg` / `fd` / Read |
 
-建议安装 Herdr Pi Integration，以提供 Pi Session 身份、状态上报和会话恢复支持。基础 Pane / Agent 调度由 Herdr 自动化能力提供。第三方 Skills 的调用约定、依赖边界和 Issue Tracker 前置条件见 [`skills/README.md`](skills/README.md)。Runtime 调度及 Pi 嵌套依赖边界见 [`runtimes/README.md`](runtimes/README.md)。
+建议安装 Herdr Pi Integration，以提供 Pi Session 身份、状态上报和 Session 恢复支持。基础 Pane / Agent 调度由 Herdr 自动化能力提供。第三方 Skills 的调用约定、依赖边界和 Issue Tracker 前置条件见 [`skills/README.md`](skills/README.md)。Runtime 调度及 Pi 嵌套依赖边界见 [`runtimes/README.md`](runtimes/README.md)。
 
 ## 快速开始
 
@@ -84,7 +84,7 @@ pnpx skills add "$AGENT_WORKBENCH_ROOT/skills" \
 - Claude Code：`/workflow <任务目标>`
 - Pi：`/workflow <任务目标>`
 
-Main 按风险选择最小必要流程。后续直接说“继续”或调整目标。同一任务重复 `/workflow` 或恢复会话仍沿用 Task ID、阶段和决策，不重新启动。访谈和批准留在 Main，L2 代码实现及独立 Research / Review / Test 通过 Herdr → Pi 执行；Research → Implement 使用新的 Pi Session。回复与生成产物跟随用户实际目标的语言，续接沿用（规则见 `core/workflow.md` §2）。Skill 是按需辅助，不另起工作流。
+Main 按风险选择最小必要流程。后续直接说「继续」或调整目标。同一任务重复 `/workflow` 或恢复 Session 仍沿用 Task ID、阶段和决策，不重新启动。访谈和批准留在 Main，L2 代码实现及独立 Research / Review / Test 通过 Herdr → Pi 执行；Research → Implement 使用新的 Pi Session。回复与生成产物跟随用户实际目标的语言，续接沿用（规则见 `core/workflow.md` §2）。Skill 是按需辅助，不另起工作流。
 
 ## 任务审阅
 
@@ -95,7 +95,7 @@ Main 按风险选择最小必要流程。后续直接说“继续”或调整目
 - `decisions.md`：实质性选择、来源、责任人、理由、取舍和确认状态。
 - `plan.md`：实施范围、步骤、契约、风险和回滚方案（按条件生成）。
 - `handoff.md`：Implementation Walkthrough、调用链、状态/数据流、扩展和排障入口。
-- `review*.md`、`test-report.md`：独立检查、Finding、测试结果和覆盖限制。
+- `review*.md`、`test-report.md`：独立 Review、Finding、测试结果和覆盖限制。
 - `workspace-baseline/`（仅存在授权重叠路径时）：用于区分任务前已有修改与本次实现。
 - Git Diff 与源码：核对实际变更和证据。
 
@@ -103,30 +103,35 @@ Main 按风险选择最小必要流程。后续直接说“继续”或调整目
 
 长期知识从任务结论中提炼：架构取舍写 ADR，使用、接口和排障知识更新对应文档；仅在当前授权内执行，不复制全部过程报告。历史产物不自动清理。
 
-同一轮明确列出的同类问题可批量确认，但设计确认、Developer Review 与外部写入授权不混同。高影响任务按条件进入 Developer Review。两类确认和最终 Gate 见 [`core/acceptance.md`](core/acceptance.md)。
+对外 Issue 交付使用可共享正文与上传附件，而不是本地任务目录链接；规则见 [`core/permissions.md`](core/permissions.md) 的「可共享证据」。
+
+同一轮明确列出的同类问题可批量确认，但设计确认、Developer Review 与外部写入授权不混同。高影响任务按条件进入 Developer Review。Developer Review 见 [`core/references/developer-review.md`](core/references/developer-review.md)，Gate 与最终验收见 [`core/acceptance.md`](core/acceptance.md)。
 
 ## 文档导航
 
 | 文档 | 内容 |
 |---|---|
-| [`core/workflow.md`](core/workflow.md) | Main 职责、阶段流程、门禁和上下文加载 |
+| [`core/README.md`](core/README.md) | Core 文件职责、术语表和文档语言约定 |
+| [`core/workflow.md`](core/workflow.md) | Main 职责、任务启动与续接、阶段流程和上下文加载 |
 | [`core/task-classification.md`](core/task-classification.md) | L0/L1/L2、任务类型和 Plan 条件 |
 | [`core/model-routing.md`](core/model-routing.md) | Agent 模型偏好、Thinking 和升级 |
 | [`core/permissions.md`](core/permissions.md) | 角色权限、决策归属、工作区和外部副作用 |
 | [`core/task-contract.md`](core/task-contract.md) | Task Contract、Workspace Baseline 和任务产物 |
-| [`core/acceptance.md`](core/acceptance.md) | Test、AI Review、Developer Review、Gate 和验收 |
+| [`core/acceptance.md`](core/acceptance.md) | Test、Review、Gate、验收、最终报告和预算 |
 | [`core/templates/`](core/templates/) | Overview、Decisions、Handoff 模板 |
-| [`core/references/`](core/references/) | Code Retrieval 与 Review Escalation |
+| [`core/references/`](core/references/) | 代码检索、盲审与裁决、Developer Review、异常恢复 |
 | [`runtimes/README.md`](runtimes/README.md) | Runtime 要求、Herdr 调度和 Skill 调用映射 |
 | [`skills/README.md`](skills/README.md) | 个人 Skills、第三方依赖、安装和同步 |
 
 ## 维护原则
 
-Core 规则只在对应权威文件中维护；Runtime Adapter 负责加载规则和映射调用方式；Skill 只承载专项能力。修改规则时先更新唯一权威文件，再检查入口、模板和引用。
+Core 规则只在对应权威文件中维护；Runtime Adapter 负责加载规则和映射调用方式；Skill 只承载专项能力。修改规则时先更新唯一权威文件，再检查入口、模板和引用。文档写作遵循 [`core/README.md`](core/README.md) 的术语表与语言约定。
 
-使用 Node.js 22+ 和 Bash 运行 `node --test scripts/check-workflow.mjs` 检查文档链接、关键规则与检查命令示例的退出码/完整日志。行为验证按 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md) 执行，静态通过不代表 Runtime 已验证。
+Agent 的检查统一调用 [`scripts/run-check.sh`](scripts/run-check.sh)，准确命令和日志路径由 Contract 提供；用法见 [`core/acceptance.md`](core/acceptance.md) §2。
 
-## License
+使用 Node.js 22+ 和 Bash 运行 `node --test scripts/check-workflow.mjs` 检查文件/章节指针、入口与 Contract 结构，以及共享检查脚本的退出码/完整日志；不绑定自然语言原句。行为验证按 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md) 执行，静态通过不代表语义或 Runtime 已验证。
+
+## 许可证
 
 本项目的自有代码、工作流规则、模板和文档采用 [MIT License](LICENSE)。允许商业使用、修改和分发；分发副本或实质性内容时须保留版权声明与许可声明。
 
