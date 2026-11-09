@@ -190,14 +190,22 @@ Runtime、模型和 Usage 来自实际元数据；汇总已有 usage 时区分�
 
 ## 9. 知识沉淀
 
-Acceptance 后，Main 评估是否有值得长期保留的知识：
+Acceptance 结果确定后，Main 做一次轻量结束评估（`core/project-memory.md` §4），结果写入当前任务 overview 的结束记录：
+
+- SKIP / NO_CHANGE 只记一行原因，不生成任务总结，回执写 N/A。未建立 `overview.md` 的 L0/L1 任务记在任务上下文。
+- PROPOSE 时把任务总结与候选留在 Task Root，不进入可检索记忆，回执写 N/A（已尝试提交并被阻断时 DEFERRED），缺失的授权或待裁决冲突写入授权字段。项目或任务禁止记忆但仍允许写 Task Root 时按此处理；完全只读、禁止在项目内写文件或 Task Root 不在 Allowed Paths 内时只在任务上下文记录，不创建目录或文件。
+- READY 时按 `core/project-memory.md` §10 提交并回读，回执取 UPDATED / FAILED；默认维护范围内不再逐次申请写入批准。
+
+业务验收与记忆结果分开记录：记忆结果不改变 Verdict，被任务范围阻止或写入失败时保留「待处理」，不自报「已记忆」；仅当任务目标本身要求交付记忆更新时，它才进入验收条件。项目根从 Intake 起解析并固定，项目根与工作流安装根不同时按目标项目写入。暂停、Session 恢复和续接不是结束，不新增记忆事件；子任务由 Main 在主任务结束时汇总。默认维护范围与例外见 `core/permissions.md` §1「记忆授权」，长期禁存来源与本地忽略前置见同节「长期禁存规则」与 `core/project-memory.md` §6.1；声明了附加禁令而来源不可核验时暂停相关写入。人工编辑经 Main 边界校验后优先保留，不因自动恢复或旧变更集被覆盖（`core/project-memory.md` §6.5）。
+
+长期保留的知识仍按归属路由：
 
 - 稳定的架构边界、公共契约、关键领域规则和重大技术取舍 → 项目 ADR / 架构文档。
 - 经验证的模块入口、调用链、运行方式和排障方法 → 项目文档或相关 `AGENTS.md`。
 - 可跨项目复用的 Agent 方法 → `agent-workbench/skills/` 中的 Skill。
 - 一次性实现细节和调试过程 → 留在本地 Task Root。
 
-只在当前任务授权范围内直接更新长期文档；授权外的候选记录到 `overview.md` / `retro.md`，附推荐位置和理由。
+只在当前任务授权范围内直接更新长期文档；授权外的候选记录到 `overview.md` / `retro.md`，附推荐位置和理由。项目记忆只保存摘要与指针，不取代上述权威位置。
 
 ## 10. 复盘
 

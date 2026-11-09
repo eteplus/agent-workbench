@@ -16,6 +16,7 @@
 - Implementation Evidence: N/A / 版本证据路径（core/acceptance.md §2）
 - 外部操作结果: None / 目标 + 已核验结果
 - External Delivery: N/A / COMPLETE / PARTIAL；正文回读、附件上传/可读取/渲染状态及限制（core/permissions.md §3）
+- Project Memory: N/A / 代次 + 本次读取的条目 ID；写入回执 UPDATED / FAILED / DEFERRED，未提交写 N/A（core/project-memory.md §4）
 - 当前阶段:
 - 下一步:
 - 阻塞:
@@ -99,6 +100,14 @@
 - P0/P1 状态:
 - 视觉验证:
 - 已知覆盖缺口:
+
+## 项目记忆
+- 项目根 / 记忆路径: N/A / 目标项目根与 `<Project Root>/.agents/workflow/memory/project-memory.md`
+- 结束评估: SKIP / NO_CHANGE / PROPOSE / READY + 原因（core/project-memory.md §4）
+- 结果版本 / 代次: N/A / 值
+- 回执: UPDATED / FAILED / DEFERRED，未提交写 N/A
+- 写入授权 / 来源: N/A / 默认维护范围或收窄依据（被项目/任务禁止、只读、路径限制或冲突待裁决时记明）
+- 业务验收关系: 记忆结果不改变 Verdict（未授权或失败时保留待处理）
 
 ## Product / Domain Approval
 | Decision ID | 批准负责人 | 状态 | 证据 |

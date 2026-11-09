@@ -103,6 +103,8 @@ Main 按风险选择最小必要流程。后续直接说「继续」或调整目
 
 长期知识从任务结论中提炼：架构取舍写 ADR，使用、接口和排障知识更新对应文档；仅在当前授权内执行，不复制全部过程报告。历史产物不自动清理。
 
+跨任务的项目记忆由 Workflow 管理，保存在目标项目本地 `.agents/workflow/memory/project-memory.md`（规则见 [`core/project-memory.md`](core/project-memory.md)）。它不属于「任务审阅」档案：任务过程留在 Task Root，记忆只保留预算内的当前知识摘要与指针。记忆、备份、暂存和候选默认不提交、不外发；首次启用时在该仓库 Git 元数据目录的 `info/exclude` 排除 `.agents/workflow/memory/`，已跟踪文件不受忽略影响。采用 Workflow 时由 Main 默认维护，标准维护不再逐次申请批准；开发者可手动编辑，项目或任务明确禁止记忆、完全只读或限制路径时收窄，扩容、移除保护项与重要冲突仍交 Main（[`core/permissions.md`](core/permissions.md) §1）。
+
 对外 Issue 交付使用可共享正文与上传附件，而不是本地任务目录链接；规则见 [`core/permissions.md`](core/permissions.md) 的「可共享证据」。
 
 同一轮明确列出的同类问题可批量确认，但设计确认、Developer Review 与外部写入授权不混同。高影响任务按条件进入 Developer Review。Developer Review 见 [`core/references/developer-review.md`](core/references/developer-review.md)，Gate 与最终验收见 [`core/acceptance.md`](core/acceptance.md)。
@@ -118,6 +120,7 @@ Main 按风险选择最小必要流程。后续直接说「继续」或调整目
 | [`core/permissions.md`](core/permissions.md) | 角色权限、决策归属、工作区和外部副作用 |
 | [`core/task-contract.md`](core/task-contract.md) | Task Contract、Workspace Baseline 和任务产物 |
 | [`core/acceptance.md`](core/acceptance.md) | Test、Review、Gate、验收、最终报告和预算 |
+| [`core/project-memory.md`](core/project-memory.md) | 项目记忆的字段、预算、期限与提交规则 |
 | [`core/templates/`](core/templates/) | Overview、Decisions、Handoff 模板 |
 | [`core/references/`](core/references/) | 代码检索、盲审与裁决、Developer Review、异常恢复 |
 | [`runtimes/README.md`](runtimes/README.md) | Runtime 要求、Herdr 调度和 Skill 调用映射 |
@@ -129,7 +132,7 @@ Core 规则只在对应权威文件中维护；Runtime Adapter 负责加载规�
 
 Agent 的检查统一调用 [`scripts/run-check.sh`](scripts/run-check.sh)，准确命令和日志路径由 Contract 提供；用法见 [`core/acceptance.md`](core/acceptance.md) §2。
 
-使用 Node.js 22+ 和 Bash 运行 `node --test scripts/check-workflow.mjs` 检查文件/章节指针、入口与 Contract 结构，以及共享检查脚本的退出码/完整日志；不绑定自然语言原句。行为验证按 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md) 执行，静态通过不代表语义或 Runtime 已验证。
+使用 Node.js 22+ 和 Bash 运行 `node --test scripts/check-workflow.mjs` 检查文件/章节指针、入口与 Contract 结构、项目记忆规则的结构/字段/预算/指针约束，以及共享检查脚本的退出码/完整日志；不绑定自然语言原句。行为验证按 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md) 执行，静态通过不代表语义或 Runtime 已验证。
 
 ## 许可证
 

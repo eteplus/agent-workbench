@@ -7,16 +7,19 @@ Core 定义跨 Runtime 通用的任务规则。每条规则只在一个权威文
 | `workflow.md` | Main 职责、任务启动与续接、任务语言、阶段顺序和规则加载 |
 | `task-classification.md` | 任务级别、类型、流程选择、L1 升级与 Plan 条件 |
 | `model-routing.md` | Main / 子 Agent 模型偏好、Thinking、运行时核验、升级和 Reviewer 跨家族约束 |
-| `permissions.md` | 角色权限、决策归属、工作区、外部副作用、凭据和并行 |
+| `permissions.md` | 角色权限、决策归属、工作区、记忆授权、外部副作用、凭据和并行 |
 | `task-contract.md` | Task Contract 字段、Workspace Baseline、产物目录、写入归属和子 Agent 完成状态 |
-| `acceptance.md` | 测试、Review、Gate 与修复、Main 验收、最终报告、知识沉淀、复盘和阶段预算 |
+| `acceptance.md` | 测试、Review、Gate 与修复、Main 验收、知识沉淀与结束评估、最终报告、复盘和阶段预算 |
 | `templates/` | `overview.md`、`decisions.md`、`handoff.md` 模板 |
+| `project-memory.md` | 项目记忆的保留范围、文件与字段、预算、期限删除、提交接口 |
 | `references/code-retrieval.md` | 代码检索与证据 |
 | `references/review-escalation.md` | 盲审、Finding 合并和定向裁决 |
 | `references/developer-review.md` | Developer Review 的触发、审阅包和批准 |
 | `references/recovery.md` | 超时、部分执行、工具和模型错误的恢复 |
 
 修改规则时先改权威文件，再检查入口、模板和引用。Runtime 的 Skill 调用语法和 Herdr 调度维护在 `runtimes/README.md`；Core 只使用逻辑 Skill 名称。
+
+项目记忆只保存在目标项目本地，路径为 `<Project Root>/.agents/workflow/memory/`，默认不进入 commit / push；采用 Workflow 时由 Main 默认维护，开发者可手改，例外与边界见 `permissions.md` §1「记忆授权」。规则见 `project-memory.md`，工作流安装根不代替目标项目根。
 
 ## 术语
 

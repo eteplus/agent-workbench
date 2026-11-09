@@ -70,6 +70,7 @@ Workspace Baseline:
   Allowed Paths: <允许写入的绝对路径，包含实现文件、指定产物和证据目录>
 Scope: <允许只读检查的文件、模块及边界；写入权限见 Allowed Paths>
 Context: <需求、方案、代码位置、前序证据和相关规范；规则摘录注明来源>
+Project Memory: <N/A / 本次必需的相关条目及其代次、来源与状态；条目上限与读取规则见 core/project-memory.md §3>
 Implementation Evidence: <关联实现版本及绝对证据路径，见 core/acceptance.md §2；实施前尚未生成时说明，非代码任务 N/A>
 Retrieval: <按 core/references/code-retrieval.md 选择 CodeGraph / rg / fd / Read / sed；或 N/A>
 Time Budget: <按 core/acceptance.md §11 的阶段预算；已知硬限制>
