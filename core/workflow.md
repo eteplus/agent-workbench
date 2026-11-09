@@ -27,7 +27,7 @@ Main 的模型偏好与 Thinking 见 `core/model-routing.md` §1，实际选择�
 一次 Workflow 是一个任务生命周期，而非一次入口命令调用。Main 先判断当前请求属于哪一类：
 
 - **同一任务**（继续、阶段切换、再次调用入口或 Session 恢复）：沿用 Task ID、Task Root、当前阶段和已确认决策，从当前上下文或 `overview.md` 直接续接。
-- **目标调整**：只更新受影响的范围、决策、计划和验收；超出授权时先确认。
+- **目标调整**：只更新受影响的范围、决策、计划和验收；超出授权时先确认。按本轮新增改动的类型与风险选择最小执行路径，Task ID 与原任务未完成的 Gate / 批准保持不变。仅记录用户已确认规则且不改执行行为的文档，按 Documentation 处理，不沿用原代码任务的委派与整套检查。
 - **独立目标**：建立新任务和新 Task Root；归属不明时只澄清这一点。
 
 ### 任务语言
@@ -119,9 +119,15 @@ Debug 是独立任务分支：先交付复现与根因证据，需要修复时�
 | 知识沉淀 / 复盘 | `core/acceptance.md` §9 / §10；选择辅助 Skill 时加载 `skills/README.md` 的依赖限制 |
 | 预算 / 超时 / 部分执行 | 预算见 `core/acceptance.md` §11；恢复时加载 `core/references/recovery.md` |
 
-子 Agent 的必需输入以 `core/task-contract.md` §1 为准，与 Main 的加载表相互独立。先定位章节再读取正文，无关分支留到触发时再读。
+- 子 Agent 的必需输入以 `core/task-contract.md` §1 为准，与 Main 的加载表相互独立。
+- 先定位章节再读取正文，无关分支留到触发时再读
+- L0/L1 由 Main 直接处理，不加载委派、模型路由和 Herdr 文件
+- Developer Review 按任务要求加载
+- Runtime 列出的 Skill 只在实际使用或上级指令要求时读取
 
 规则按所需章节分批加载；独立的小结果可以批量读取，长文件或多份报告分别读取，避免汇总输出被截断。发生截断时只补读缺失范围，再依赖其结论；一次成功的工具调用不代表正文完整可见。检索结果已覆盖所需源码时直接使用。
+
+工具发现使用当前 Runtime 的接口：先限定服务与操作名，一次获取当前阶段需要的 Schema 并复用；Pi MCP 发现使用 `tool_search`，`tools.<name>` 仅调用已声明的工具，未声明的方法先用 `describeTool` 核对。Codemode 的 `store` 只保存小摘要；Session 核验按可疑事件定向读取，Usage 在本地一次解析汇总，只输出计数、错误与相关片段，不把整份 Session 放入上下文或 store。
 
 加载表与委派 References 使用相对于 `AGENT_WORKBENCH_ROOT` 的路径；Core 正文中的短文件名相对于所在目录。Runtime 入口先解析该环境变量再读取文件；变量缺失或路径无效时报告配置问题并请求修复。
 

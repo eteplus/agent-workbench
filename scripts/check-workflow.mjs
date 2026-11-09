@@ -152,6 +152,42 @@ test('完整 Diff 指纹能区分同路径、同增删行数的内容变化', ()
   }
 });
 
+test('未跟踪输入等长变化时，Diff 与路径清单不变但内容哈希改变', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'workbench-untracked-'));
+  try {
+    const init = spawnSync('git', ['init', '-q', dir], { encoding: 'utf8' });
+    assert.ifError(init.error);
+    assert.equal(init.status, 0, init.stderr);
+    const snapshots = [];
+    for (const value of ['partial', 'applied']) {
+      writeFileSync(join(dir, 'input.txt'), value);
+      const diff = spawnSync('git', ['diff', '--binary'], { cwd: dir, encoding: 'utf8' });
+      const paths = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: dir, encoding: 'utf8' });
+      assert.ifError(diff.error);
+      assert.ifError(paths.error);
+      assert.equal(diff.status, 0);
+      assert.equal(paths.status, 0);
+      snapshots.push({ diff: diff.stdout, paths: paths.stdout,
+        digest: createHash('sha256').update(readFileSync(join(dir, 'input.txt'))).digest('hex') });
+    }
+    assert.equal(snapshots[0].diff, snapshots[1].diff);
+    assert.equal(snapshots[0].paths, 'input.txt\n');
+    assert.equal(snapshots[0].paths, snapshots[1].paths);
+    assert.notEqual(snapshots[0].digest, snapshots[1].digest);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('外部回读正文必须精确一致，标签比较不依赖顺序', () => {
+  const submitted = '- [ ] partial\n';
+  const readback = '- [ ] applied\n';
+  assert.equal(submitted.length, readback.length);
+  assert.equal(submitted.split('\n').length, readback.split('\n').length);
+  assert.notEqual(submitted, readback);
+  assert.deepEqual(new Set(['done', 'reviewed']), new Set(['reviewed', 'done']));
+});
+
 test('后台检查的启动成功不代表完成，原上下文 wait 保留最终退出码', () => {
   const dir = mkdtempSync(join(tmpdir(), 'workbench-background-'));
   try {
