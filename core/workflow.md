@@ -58,9 +58,9 @@ Main 在任务开始、阶段切换或阻塞时向用户简报；授权范围内
 
 ### Research
 
-Research 按需进行。Ticket、已确认方案与 Intake 已能确定数据入口、消费链和验证路径时，Main 直接准备 Implement Contract，局部影响由执行者在启动核验中确认。
+Research 按需进行。Ticket、已确认方案与 Intake 已能确定数据入口、消费链和验证路径时，Main 直接准备 Implement Contract，局部影响由执行者在启动核验中确认。Ticket 或其评论已带实施前源码核验记录时，默认属于这种情况；Main 只抽查记录中的关键入口是否仍存在。
 
-需要 Research 时，Repo / Web Researcher 只接收具体的未解问题与退出条件，复用已有结论，交付区分事实、推断与待确认事项，并附来源证据。内部与外部调研可用不同产物路径并行；项目检索遵循 `core/references/code-retrieval.md`。
+需要 Research 时，Repo / Web Researcher 只接收具体的未解问题与退出条件，复用已有结论，交付区分事实、推断与待确认事项，并附来源证据。服务于实施的 Repo Research 直接产出开工清单（验收 → 入口 → 测试文件 → 断言，`core/task-classification.md` §4），Main 核验后原样并入 Plan，Implementer 不再重做同一调查。内部与外部调研可用不同产物路径并行；项目检索遵循 `core/references/code-retrieval.md`。
 
 退出条件：已确认可复用入口、受影响调用链/契约、关键数据来源和验证路径，阻断方案的未知项已查明或列为用户决策。每次检索对应一个尚未回答的问题；达到条件就写方案，非阻断细节交实施者核对。超出 Intake 的深入调查委派 Researcher。连续工作每 10 分钟向用户简报已确定事项、阻塞问题和下一项交付；这是沟通检查点，与阶段预算分开计算。
 
@@ -95,7 +95,8 @@ Debug 是独立任务分支：先交付复现与根因证据，需要修复时�
 ## 5. 委派原则
 
 - L0/L1 由 Main 按 `core/task-classification.md` §1 直接处理。
-- L2 代码实现由 Herdr → Pi Implementer 执行，Main 负责方案与验收。Research → Implement 使用新的 Pi Session，只传最终方案、契约、候选清单及必要证据入口；修正同阶段报告或定向修复可沿用原 Session。
+- L2 代码实现由 Herdr → Pi Implementer 执行，Main 负责方案与验收。Research → Implement 使用新的 Pi Session，只传最终方案、契约、候选清单及必要证据入口。
+- 修正同阶段报告或定向修复 / 复审可沿用原 Session，但以下情况新开 Session，只传本轮 Contract、Finding、当前 Diff / Implementation Evidence 和上一份 Handoff 路径：更换模型（旧历史会按新模型单价整段重算）；原 Session 上下文已超过约 150K token（`scripts/session-progress.mjs` 的 `context_tokens`）。
 - 独立 Research、Debug 诊断、Review、Test 按需通过 Herdr 启动 Pi 子 Agent；Debug 诊断默认只读，需要修复时按修复的级别执行。
 - 委派使用 `core/task-contract.md` 的 Contract，每次只传入本次任务需要的信息；子任务沿用 Task ID，以独立 Subtask ID 区分，产物留在同一个 Task Root。
 - 结构化 Agent 状态用于协调，报告、实际 Diff 和检查结果用于验收。产物缺失、状态矛盾或 Skill 加载异常时，定向读取对应 Session 记录；TUI 屏幕仅用于终端故障诊断。
@@ -130,7 +131,9 @@ Debug 是独立任务分支：先交付复现与根因证据，需要修复时�
 - Developer Review 按任务要求加载
 - Runtime 列出的 Skill 只在实际使用或上级指令要求时读取
 
-规则按所需章节分批加载；独立的小结果可以批量读取，长文件或多份报告分别读取，避免汇总输出被截断。发生截断时只补读缺失范围，再依赖其结论；一次成功的工具调用不代表正文完整可见。检索结果已覆盖所需源码时直接使用。
+规则按所需章节分批加载；独立的小结果可以批量读取，长文件或多份报告分别读取，避免汇总输出被截断。发生截断时只补读缺失范围，再依赖其结论；一次成功的工具调用不代表正文完整可见。检索结果已覆盖所需源码时直接使用。同一任务内已加载且未变化的规则章节不再重读。
+
+Main 接收子 Agent 交付时，先读子 Agent 最终回复与报告顶部状态块，再按待核对的 Finding / 检查项用 grep 定位相关章节读取；只有报告与事实矛盾或验收需要全文时才整篇读取。已读过的旧版报告不重读，只读新增部分。
 
 工具发现使用当前 Runtime 的接口：先限定服务与操作名，一次获取当前阶段需要的 Schema 并复用；Pi MCP 发现使用 `tool_search`，`tools.<name>` 仅调用已声明的工具，未声明的方法先用 `describeTool` 核对。Codemode 的 `store` 只保存小摘要；Session 核验按可疑事件定向读取，Usage 在本地一次解析汇总，只输出计数、错误与相关片段，不把整份 Session 放入上下文或 store。
 

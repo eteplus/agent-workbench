@@ -12,6 +12,7 @@
 - 类型 / 级别:
 - 当前 Main Runtime / Provider / Model / Thinking:
 - 当前授权 / 来源:
+- 模型限制 / 费用上限: None / 用户禁用的模型、已批准的升级与上限 + 来源（core/model-routing.md §5）
 - 已提交变更: None / Commit + 范围
 - Implementation Evidence: N/A / 版本证据路径（core/acceptance.md §2）
 - 外部操作结果: None / 目标 + 已核验结果

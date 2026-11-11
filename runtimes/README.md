@@ -59,14 +59,15 @@ Contract 的绝对 Source Path 是本次 Skill 正文来源。Main 核对发现�
 以下是顺序说明，不是固定脚本；实际参数按当前安装版本核实：
 
 1. 创建或选择可用 Shell Pane，保存响应中的 Pane ID，保持用户焦点。
-2. 显式指定子 Agent 模型与 Thinking 启动 Pi；核验方法见 `core/model-routing.md`。Research → Implement 的新 Session 边界以 `core/workflow.md` §5 为准，不能只重命名 Agent 或向原 Research Session 追加实施 Contract；可复用空闲 Pane，但须核验新的 Pi Session 身份。
+2. 显式指定子 Agent 模型与 Thinking 启动 Pi；核验方法见 `core/model-routing.md`。Session 复用边界以 `core/workflow.md` §5 为准：换模型或上下文过大时不用 `--session` 接续旧文件，不能只重命名 Agent 或向原 Research Session 追加实施 Contract；可复用空闲 Pane，但须核验新的 Pi Session 身份。
 3. 提交 Contract 路径（或上述单行 Skill 命令）时不要带 `--wait`：`agent prompt` 成功只代表已写入，之后用 `agent get` 确认 `working`。用 1 秒级 `--wait` 探活只会拿到必然的 timeout 非零退出，把正常投递显示成错误。
-4. 需要阻塞等待时用一个贴近任务实际时长的 `--wait` / `agent wait`（例如 `--timeout 600000`），而不是反复 120 秒轮询；状态等待不跟踪具体任务，旧 turn 的完成不能算新任务的完成。
-5. `agent get` / 结构化 API 用于协调运行、阻塞和 Session 身份；指定报告、源码、Diff 和真实检查结果用于验收。先核对 Task / Subtask ID 与交付内容，再判断本次完成。
-6. 超时 / stalled 后先检查原 Agent 的状态和产物；仍在运行则继续观察原任务，不补发。若结果未知，暂停重发并报告。恢复规则见 `core/references/recovery.md`。
-7. 产物缺失、状态矛盾或 Skill 加载异常时，读取目标 Agent 提供的 `PI_SESSION_FILE`，或 `agent get` 的 `agent_session.value`（以当前 Schema 为准），只查看相关输入、工具结果和状态事件。Main 的 Session 路径不能替代子 Agent 的路径。
-8. TUI `agent read` / `pane read` 仅排查终端问题；不是用户批准、Skill 展开或任务完成的证据。阻塞需要用户决策时回到 Main；终端权限 / 登录对话只在明确授权后处理，未知对话不得自动批准。
-9. 仅清理本任务创建且不再需要的 Pane / Session，保留本地证据和仍需恢复的 Session。
+4. 阻塞等待用一次工具调用完成：`bash "$AGENT_WORKBENCH_ROOT/scripts/wait-agent.sh" <agent> <子 Agent Session 文件> <该角色证据目录> 300 2 [费用上限]`（在目标仓库根运行，工具超时设得足够长）。脚本内部每 5 分钟 `agent wait` 一次并探测 Diff、证据目录和 Session 费用，只在完成（0）、连续两次探测没有新改动或新证据（3）、达到费用上限（4）或 Herdr 报错（2）时返回，等待期间不占用 Main 回合。返回 3 时立即向子 Agent 发送检查点指令，不等阶段预算到期；返回 4 时按 `core/model-routing.md` §5 向用户简报。阶段「首个产出」时限早于停滞判定时，可用更小的间隔。状态等待不跟踪具体任务，旧 turn 的完成不能算新任务的完成。
+5. 本任务有子 Agent 处于 working 时，Main 继续等待并推进，不结束当前回合；只在需要用户决策或用户要求暂停时结束，并在简报中列出仍在运行的 Agent 与续接方式。
+6. `agent get` / 结构化 API 用于协调运行、阻塞和 Session 身份；指定报告、源码、Diff 和真实检查结果用于验收。先核对 Task / Subtask ID 与交付内容，再判断本次完成。
+7. 超时 / stalled 后先检查原 Agent 的状态和产物；仍在运行则继续观察原任务，不补发。若结果未知，暂停重发并报告。恢复规则见 `core/references/recovery.md`。
+8. 产物缺失、状态矛盾、Skill 加载异常或需要核对必需输入是否已读时，读取目标 Agent 提供的 `PI_SESSION_FILE`，或 `agent get` 的 `agent_session.value`（以当前 Schema 为准）；`session-progress.mjs <文件> --reads` 列出已读路径，其余只查看相关输入、工具结果和状态事件。Main 的 Session 路径不能替代子 Agent 的路径。
+9. TUI `agent read` / `pane read` 仅排查终端问题；不是用户批准、Skill 展开或任务完成的证据。阻塞需要用户决策时回到 Main；终端权限 / 登录对话只在明确授权后处理，未知对话不得自动批准。
+10. 仅清理本任务创建且不再需要的 Pane / Session，保留本地证据和仍需恢复的 Session。
 
 ## 新增 Runtime
 

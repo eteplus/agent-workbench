@@ -62,7 +62,13 @@ Main Runtime 与 Main 模型分别选择：
 
 ### Implementer
 
-同一问题连续两次实现失败、关键测试失败且当前模型无法定位原因、涉及复杂并发/事务/数据一致性/高风险边界，或实际复杂度明显超出预期时，Main 可升级到已配置的 Claude Sonnet 5.5 / Claude Opus 5.5，并复用已有需求、方案、Diff、测试和失败证据。
+同一问题连续两次实现失败，或关键测试失败且当前模型无法定位原因时，Main 可升级到已配置的 Claude Sonnet 5.5 / Claude Opus 5.5，并复用已有需求、方案、Diff、测试和失败证据。首轮 Review 发现 P1 是正常修复输入，由原模型修复；任务涉及并发、事务或数据一致性本身不构成升级理由。升级前先通过下方「成本闸门」。
+
+### 成本闸门
+
+启动或切换到单价明显高于该角色 §2 默认模型的模型（以 `pi --list-models` 的 `cost` 为准）前，Main 先在自己的 Session 中向用户确认：升级原因、目标模型、预计轮次与费用量级。用户回答记入 `overview.md` 顶部状态；用户禁用某模型或设定费用上限时，同样写入顶部状态并传入后续每份 Contract，升级、Fallback 和 Reviewer 选择都受其约束。
+
+等待子 Agent 时把用户上限传给 `scripts/wait-agent.sh`（`runtimes/README.md`），每次返回时查看各 Session 已花费用；接近用户上限，或单个子 Agent 的费用已超过其余角色合计时，暂停并向用户简报。
 
 ### Primary Review
 
@@ -70,12 +76,13 @@ Main Runtime 与 Main 模型分别选择：
 
 ### Secondary Review
 
-满足以下任一条件时启动：
+Primary Review 交付后，满足以下任一条件时启动：
 
-- 涉及安全/权限、数据迁移/一致性或核心接口契约。
-- 跨模块或复杂 Diff 中有具体的高影响边界，Primary Review 或现有测试未充分覆盖。
+- 涉及安全/权限、数据迁移/一致性或核心接口契约，且该处具体风险在 Primary Review 和现有测试中都没有覆盖。
 - 测试覆盖有明确缺口，且对应具体的高影响风险。
 - Primary Reviewer 提出需要独立交叉验证的 P0/P1。
+
+Secondary Reviewer 仍盲审，不接收 Primary 结论；Contract 只列 Main 记录的待覆盖风险。
 
 启动前，Main 在 `overview.md` 记录具体风险、现有覆盖的限制和本次新增的检查目标。理由需要指向具体风险；文件数量多或跨模块本身不构成理由。
 

@@ -9,8 +9,7 @@
 | CodeGraph | 跨文件符号关系、调用链和变更影响分析 |
 | `rg` | 精确文本、标识符、配置键和引用搜索 |
 | `fd` | 文件名、目录和路径定位 |
-| `Read` | 读取源码、文档和必要上下文 |
-| `sed` | 已知文件路径和行号后的局部片段提取 |
+| `Read` | 读取源码、文档和必要上下文；局部片段用 offset / limit |
 
 CodeGraph 使用 [@colbymchenry/codegraph](https://github.com/colbymchenry/codegraph)，属于可选检索增强。按当前 Runtime 暴露的 MCP Schema 或 CLI Help 使用；未安装或不可用时，使用 `rg` / `fd` / `Read` 继续工作。
 
@@ -20,7 +19,7 @@ CodeGraph 使用 [@colbymchenry/codegraph](https://github.com/colbymchenry/codeg
 2. CodeGraph 返回的原文视为已读，复用已覆盖片段；关键结论只补核对未覆盖或已变化的工作区源码、Git Diff 和测试证据。
 3. 图谱索引可能落后于工作区。出现过期提示时，按 CodeGraph 当前文档更新索引；无法确认索引状态时，以当前源码和确定性检索为准。
 4. CodeGraph 不可用时改用 `rg` / `fd` / `Read`，只在影响覆盖范围时说明限制。
-5. `sed` 只用于已知路径和行号后的局部读取；仓库发现和搜索使用上述工具。
+5. 文件内容用 `Read` 读取（已知行号时用 offset / limit），同一片段在未修改时不重复读取；Shell 中的 `sed -n` / `cat` 只用于管道处理命令输出。修改文件的工具要求见 `core/acceptance.md` §1。
 
 ## 消费扫描与删除证据
 

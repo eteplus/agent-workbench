@@ -103,7 +103,7 @@ test('report templates retain evidence and controlled status fields', () => {
 test('structural checks reject broken file and section pointers', () => {
   const dir = mkdtempSync(join(tmpdir(), 'workbench-docs-'));
   try {
-    for (const path of [...docs, 'LICENSE', 'scripts/check-workflow.mjs', 'scripts/run-check.sh']) {
+    for (const path of [...docs, 'LICENSE', 'scripts/check-workflow.mjs', 'scripts/run-check.sh', 'scripts/evidence-snapshot.sh', 'scripts/session-progress.mjs', 'scripts/wait-agent.sh']) {
       const destination = join(dir, path);
       mkdirSync(dirname(destination), { recursive: true });
       writeFileSync(destination, read(path));
@@ -118,7 +118,7 @@ test('structural checks reject broken file and section pointers', () => {
       ['\n`core/acceptance.md` §1–99\n', 'Workbench file and numbered-section'],
     ]) {
       writeFileSync(join(dir, 'README.md'), read('README.md') + suffix);
-      const result = spawnSync(process.execPath, ['--test', '--test-name-pattern', pattern, join(dir, 'scripts/check-workflow.mjs')], { encoding: 'utf8', env });
+      const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', '--test-name-pattern', pattern, join(dir, 'scripts/check-workflow.mjs')], { encoding: 'utf8', env });
       assert.ifError(result.error);
       assert.equal(result.status, 1, result.stdout + result.stderr);
       assert.match(result.stdout, suffix.includes('missing.md') ? /core\/missing\.md/ : /§99/);
@@ -548,6 +548,110 @@ test('日志参数无效或无法打开时不执行检查', () => {
       assert.equal(result.status, 2);
       assert.ok(!existsSync(marker));
     }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('版本证据脚本：采集后一致，同长度内容变化与新增未跟踪文件都被识别', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'workbench-evidence-'));
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  const script = resolve(root, 'scripts/evidence-snapshot.sh');
+  const run = (...args) => spawnSync('bash', [script, ...args], { cwd: dir, encoding: 'utf8' });
+  try {
+    git('init', '-q');
+    writeFileSync(join(dir, '.gitignore'), 'evidence/\n');
+    writeFileSync(join(dir, 'a.ts'), 'const limit = 1;\n');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base');
+    const base = git('rev-parse', 'HEAD');
+    writeFileSync(join(dir, 'a.ts'), 'const limit = 2;\n');
+    writeFileSync(join(dir, 'new.ts'), 'partial');
+    const out = join(dir, 'evidence', 'v1');
+    const captured = run(base, out);
+    assert.equal(captured.status, 0, captured.stderr);
+    assert.match(readFileSync(join(out, 'untracked-hashes.txt'), 'utf8'), /\tnew\.ts\n$/);
+    assert.equal(run('--verify', out).status, 0);
+    writeFileSync(join(dir, 'a.ts'), 'const limit = 9;\n');
+    const changed = run('--verify', out);
+    assert.equal(changed.status, 1);
+    assert.match(changed.stdout, /MISMATCH diff-fingerprint\.txt/);
+    writeFileSync(join(dir, 'a.ts'), 'const limit = 2;\n');
+    writeFileSync(join(dir, 'new.ts'), 'applied');
+    assert.match(run('--verify', out).stdout, /MISMATCH untracked-hashes\.txt/);
+    writeFileSync(join(dir, 'new.ts'), 'partial');
+    writeFileSync(join(dir, 'extra.ts'), '');
+    assert.match(run('--verify', out).stdout, /MISMATCH untracked-hashes\.txt/);
+    assert.equal(run(base, 'relative').status, 2);
+    assert.equal(run('no-such-ref', join(dir, 'evidence', 'bad')).status, 2);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Session 进展探测：按模型汇总费用并列出读取路径', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'workbench-session-'));
+  try {
+    const file = join(dir, 'session.jsonl');
+    const assistant = (timestamp, model, total, call) => JSON.stringify({ type: 'message', timestamp,
+      message: { role: 'assistant', model, usage: { cost: { total } }, content: [{ type: 'toolCall', ...call }] } });
+    writeFileSync(file, [
+      JSON.stringify({ type: 'session', timestamp: '2026-01-01T00:00:00.000Z' }),
+      assistant('2026-01-01T00:01:00.000Z', 'cheap', 0.25, { name: 'read', arguments: { path: '/rules/a.md' } }),
+      assistant('2026-01-01T00:02:00.000Z', 'premium', 2, { name: 'bash', arguments: { command: 'pnpm verify' } }),
+      '',
+    ].join('\n'));
+    const result = spawnSync(process.execPath, [resolve(root, 'scripts/session-progress.mjs'), file, '--reads'], { encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /last_event=2026-01-01T00:02:00\.000Z .*turns=2 context_tokens=0 cost_usd=2\.2500/);
+    assert.match(result.stdout, /model premium cost_usd=2\.0000/);
+    assert.match(result.stdout, /tool 00:02:00 bash pnpm verify/);
+    assert.match(result.stdout, /read \/rules\/a\.md/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('等待循环：完成、停滞、费用上限与 Herdr 错误各有独立退出码', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'workbench-wait-'));
+  try {
+    const repo = join(dir, 'repo');
+    mkdirSync(repo);
+    spawnSync('git', ['init', '-q'], { cwd: repo });
+    const session = join(dir, 'session.jsonl');
+    writeFileSync(session, JSON.stringify({ type: 'message', timestamp: '2026-01-01T00:00:00.000Z',
+      message: { role: 'assistant', model: 'm', usage: { input: 10, cost: { total: 3 } }, content: [] } }) + '\n');
+    // Fake herdr: replays one scripted outcome per call; "edit" also simulates a code change.
+    const herdr = join(dir, 'herdr');
+    writeFileSync(herdr, `#!/usr/bin/env bash
+n=$(cat "$PLAN_DIR/count" 2>/dev/null || echo 0); echo $((n + 1)) > "$PLAN_DIR/count"
+step=$(sed -n "$((n + 1))p" "$PLAN_DIR/plan")
+case $step in
+  done) echo '{"result":{}}'; exit 0 ;;
+  edit) echo "x$n" >> work.txt; echo '{"error":{"code":"timeout"}}'; exit 1 ;;
+  boom) echo '{"error":{"code":"agent_not_found"}}'; exit 1 ;;
+  *) echo '{"error":{"code":"timeout"}}'; exit 1 ;;
+esac
+`, { mode: 0o755 });
+    const run = (plan, maxCost = '0') => {
+      writeFileSync(join(dir, 'plan'), plan.join('\n') + '\n');
+      rmSync(join(dir, 'count'), { force: true });
+      return spawnSync('bash', [resolve(root, 'scripts/wait-agent.sh'), 'a1', session, join(dir, 'evidence'), '0', '2', maxCost],
+        { cwd: repo, encoding: 'utf8', env: { ...process.env, HERDR_BIN: herdr, PLAN_DIR: dir } });
+    };
+    const progressed = run(['edit', 'wait', 'edit', 'done']);
+    assert.equal(progressed.status, 0, progressed.stdout + progressed.stderr);
+    assert.match(progressed.stdout, /agent_done/);
+    const stalled = run(['wait', 'wait', 'done']);
+    assert.equal(stalled.status, 3, stalled.stdout);
+    assert.match(stalled.stdout, /stalled probes_without_progress=2/);
+    assert.equal(run(['edit', 'done'], '2.5').status, 4);
+    assert.equal(run(['boom']).status, 2);
+    assert.equal(spawnSync('bash', [resolve(root, 'scripts/wait-agent.sh')]).status, 2);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

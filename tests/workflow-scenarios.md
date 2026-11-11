@@ -28,6 +28,11 @@
 | 同范围内容变化 | 已通过的检查和批准绑定旧 Implementation Evidence；随后改动同一行，保持 HEAD、文件名和增删行数不变 | 当前证据与旧版本不符；不复用旧结论或宣称 Diff 未变，重做受影响检查及实质变化的批准 |
 | 仅 Escalation 可用 | Primary 的高影响问题未解决，Secondary 模型不可用，但模型路由允许独立 Escalation | 记录 Secondary 未执行及原因，直接做定向裁决；不强制补一轮不可执行的盲审，P0/P1 未解决仍 BLOCKED |
 | 共享验证输出 | 两个实施子任务代码路径不相交，但检查会生成同一构建/类型目录 | 代码可并行；Main 等相关实施完成并确认输入稳定后串行运行共享输出检查，记录调度依据 |
+| 高价模型升级 | 首轮 Review 报出 P1；任务涉及数据一致性；Implementer 尚无失败记录 | 原模型修复，不升级；同一问题两次失败后才提出升级，并先在 Main 询问用户、写明预计费用；用户禁用某模型后后续 Contract 均不使用 |
+| 子 Agent 运行中 | Main 已派发实施，等待超时且无需用户决策 | Main 继续 5 分钟级等待与进展探测，不结束回合；两次探测无新改动或日志即发送检查点指令 |
+| 修复先红后绿 | 定向修复 Contract 要求失败回归；另设实施者已先改实现的对照 | 回归先在未改实现上 red 再修复；对照中如实记录 red 缺失，不用 stash / checkout / 临时覆盖回退共享工作区 |
+| 换模型修复 | 原 Implementer Session 已有约 40 万 token 上下文；修复轮需改用另一模型 | 新开 Session，只传本轮短 Contract、Finding、Diff 证据与上一份 Handoff；不用 `--session` 接续旧文件 |
+| 语义未定义的 Finding | 最终修复轮复审发现旧数据缺字段时合计是否算完整没有规定 | 不计 P1、不占修复轮次；Main 向用户提问并记入 decisions.md；与本轮修复无关的新发现记入 Unresolved |
 | 产物归属与笔误修正 | 两份子报告；一处已核实的事实笔误，随后要求改 Review 结论 | 每个文件只有一个写入负责人；Main 仅在记录移交后修正事实笔误；严重性、覆盖完整性和结论变更仍由 Reviewer 负责 |
 | 实施中新决策 | Implementer 发现影响契约的新选择，decisions.md 仅 Main 可写 | 子 Agent 报告问题、证据和建议，决策文件字节不变；Main 记录并完成必要确认后才恢复依赖它的实施 |
 | 并行视觉交付 | 同一 Task Root 下两个视觉子任务，Contract 分别指定 subtasks/a/ 与 subtasks/b/ 的报告和截图路径 | 两个 Agent 使用各自绝对交付路径；不因 UI Skill 默认目录树改写根目录 visual-report.md，也不覆盖另一子任务产物 |

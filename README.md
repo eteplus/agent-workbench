@@ -130,7 +130,7 @@ Main 按风险选择最小必要流程。后续直接说「继续」或调整目
 
 Core 规则只在对应权威文件中维护；Runtime Adapter 负责加载规则和映射调用方式；Skill 只承载专项能力。修改规则时先更新唯一权威文件，再检查入口、模板和引用。文档写作遵循 [`core/README.md`](core/README.md) 的术语表与语言约定。
 
-Agent 的检查统一调用 [`scripts/run-check.sh`](scripts/run-check.sh)，准确命令和日志路径由 Contract 提供；用法见 [`core/acceptance.md`](core/acceptance.md) §2。
+Agent 的检查统一调用 [`scripts/run-check.sh`](scripts/run-check.sh)，准确命令和日志路径由 Contract 提供；用法见 [`core/acceptance.md`](core/acceptance.md) §2。实现版本证据用 [`scripts/evidence-snapshot.sh`](scripts/evidence-snapshot.sh) 采集与比较；Main 等待子 Agent 时用 [`scripts/wait-agent.sh`](scripts/wait-agent.sh) 在一次调用内等待并探测停滞与费用，单次探测用 [`scripts/session-progress.mjs`](scripts/session-progress.mjs)（[`runtimes/README.md`](runtimes/README.md)）。
 
 使用 Node.js 22+ 和 Bash 运行 `node --test scripts/check-workflow.mjs` 检查文件/章节指针、入口与 Contract 结构、项目记忆规则的结构/字段/预算/指针约束，以及共享检查脚本的退出码/完整日志；不绑定自然语言原句。行为验证按 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md) 执行，静态通过不代表语义或 Runtime 已验证。
 

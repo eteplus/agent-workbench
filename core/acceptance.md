@@ -6,6 +6,10 @@
 
 L2 代码变更由 Herdr → Pi Implementer 执行。Implementer 按 Contract、`core/permissions.md` 和本文件做最小必要修改，运行受影响检查，写入指定 `handoff.md`。Skill 加载与失败处理见 `core/task-contract.md` §1；可选上游 `implement` 的前置条件见 `skills/README.md`「条件安装」。
 
+修改源码、测试和报告使用 Runtime 的 edit / write 工具：edit 在匹配失败时报错，脚本替换（`python3` / `sed -i` / heredoc 追加）未命中或命中别处时会静默成功。已有文件用 edit 追加或替换，write 只用于新文件。
+
+Implementer 从 Plan 的「入口 → 测试文件 → 断言」清单直接开始，启动核验只补核清单未覆盖或已变化的调用方；首个定向失败回归在派发后 15 分钟内运行并保存日志（§11）。
+
 Main 读取 Handoff，核对任务 Diff、关键实现和真实检查结果后进入独立 Review。Implementer 的自检与独立 Primary Review 分开计算。
 
 ## 2. 测试
@@ -36,13 +40,24 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/run-check.sh" /absolute/task/subtasks/implem
 
 功能涉及异步数据、订阅、缓存或可恢复状态时，实施前按原始目标列出需要验收的状态转换（如首次进入、首个数据到达、后续更新、结束、刷新恢复、切换上下文、无数据），每态说明值的来源、刷新触发和缺值语义。
 
+派生状态（完整度、计量、汇总、降级标记等）由多个消费方读取时，状态表写成真值表：行 = 输入状态（含异常终态、保存失败、旧数据缺字段），列 = 每个消费方（持久化行、实时推送、详情读取、聚合 / 合计），每格写预期值并对应一条测试。真值表属于 Plan，Implementer 与 Reviewer 逐格核对。
+
 实施者在修改前把原始验收逐项对应到真实入口、合法输入和可观察断言，写在现有 Handoff 启动核验段，不新增报告或 Main 握手。新增输入复用项目 typed fixture；合法性无法由类型保证时，在测试边界用既有 schema 校验一次，不用强制类型断言掩盖缺字段。同一输入的一致性要求沿用实际入口输出驱动后续消费断言；关键断言拆用例或使用测试框架的软断言，保证首个预期失败不遮蔽其它验收。
 
-回归测试从真实数据入口经过状态层到界面断言，覆盖受影响的状态转换与旧值隔离。缺陷修复先运行最小定向失败回归，输入与断言稳定后再修复；完整项目检查在候选交付版本执行，仍遵循项目必需检查要求。原始要求中的行为缺失按缺陷处理。运行有费用或数据写入时按 `core/permissions.md` §2 取得授权；受控链路和用户实测的覆盖分别记录。
+回归测试从真实数据入口经过状态层到界面断言，覆盖受影响的状态转换与旧值隔离。缺陷修复先写最小定向回归，在未修改的实现上运行得到 red，再修复至 green。已先改实现时如实记录「red 证据缺失」，不在共享工作区回退实现来补证据（`core/permissions.md` §2）。完整项目检查在候选交付版本执行，仍遵循项目必需检查要求。原始要求中的行为缺失按缺陷处理。运行有费用或数据写入时按 `core/permissions.md` §2 取得授权；受控链路和用户实测的覆盖分别记录。
 
 ### 实现版本证据
 
 测试、Review 与 Developer Review 绑定同一份可比较的 `Implementation Evidence`；HEAD、文件列表或增删行数相同都不足以证明实现未变。
+
+采集与比较统一使用 [evidence-snapshot.sh](../scripts/evidence-snapshot.sh)（在目标仓库根运行），不手工拼装路径清单：
+
+```bash
+bash "$AGENT_WORKBENCH_ROOT/scripts/evidence-snapshot.sh" <base> /absolute/task/subtasks/implement/evidence/v1 [-- <paths>...]
+bash "$AGENT_WORKBENCH_ROOT/scripts/evidence-snapshot.sh" --verify /absolute/task/subtasks/implement/evidence/v1
+```
+
+省略 `<paths>` 时覆盖整个仓库（排除输出目录）。脚本保存下列各项；`--verify` 逐项比较，一致返回 0，不一致返回 1 并显示差异。
 
 - 执行者在本角色证据目录保存：Base Commit、检查范围内的完整二进制 Diff（`git diff --binary <base> -- <paths>`），以及参与检查的新增未跟踪文件的相对路径、状态和 SHA-256。范围包含相关源码、测试与配置。重叠脏文件按 `core/task-contract.md` §3 的任务前快照核验。
 - 执行者停止写入后采集一次，再运行检查；检查结束后比较同一范围的 Diff 指纹（如 `git diff --binary <base> -- <paths> | shasum -a 256`）及参与检查的新增未跟踪输入路径、状态和内容哈希，全部一致才把命令、结果和日志与该版本关联。只有检查期间可能存在其他写入者（并行实施、用户编辑、会写源码的生成步骤）时，才在每项检查前后分别保存完整快照。各版本分文件保留，注明实现版本、采集阶段、用途（过程检查 / 最终验收）和生成命令；版本关联按内容和明确记录判断，文件名序号仅作标识。
@@ -52,6 +67,8 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/run-check.sh" /absolute/task/subtasks/implem
 ### 验证调度
 
 Main 单独判定验证能否并行。写共享输出（如类型生成、构建目录）或读取整个工作区的检查，在相关实施完成、输入稳定后串行执行，并由 Main 指定唯一执行者；Reviewer 需要额外运行这类检查时先交 Main 调度。不共享输出且输入稳定的检查可以并行。Contract 记录实际范围、输出位置和调度依据。
+
+已授权的集成 / 真实数据库 / HTTP 检查在首个稳定版本交付后即委派 Tester，与 Primary Review 并行（Reviewer 只读源码，不与 Tester 的构建输出冲突）。Tester 的失败与 Review Finding 一起进入同一轮修复，不等待修复后才首次运行。
 
 检查完成后确认后置环境仍可用（如生成配置仍指向有效服务、临时资源已按约定清理）。测试改变了生成配置时，执行者用项目既有恢复命令恢复并核验，再执行受影响检查。独立 Tester 的 Contract 写明相比已有验证新增的覆盖。
 
@@ -122,10 +139,15 @@ Secondary Review 与 Reviewer Escalation 的触发条件和模型选择见 `core
 2. 对照各阶段报告和工具事件中的重定向、脚本输出及额外写入；Git Diff 只覆盖 Git 跟踪范围，手工写入另行核对。漏报或越界写入在归属、影响和证据处置查明前阻止 PASS，处理见 `core/permissions.md` §2。
 3. 报告中的事实笔误按 `core/permissions.md` §2「报告笔误修正」处理，不触发代码修复或整套验证。
 
-存在未解决的 P0/P1 时定向修复：
+存在未解决的 P0/P1 时定向修复。进入修复前，Main 先做两件事：
 
-1. 把 Finding、证据和验收条件交给原 Implementer。
-2. 修复后运行针对性回归并更新 `handoff.md`；测试输入或断言变化时重建对应失败回归证据，输入未变时引用原失败证据。
+- Main 自己对 Diff 的补充审查只在首次 Gate 做一次，结果与 Reviewer Finding 合并进第一轮。之后各轮 Main 只核对本轮 Finding 是否关闭、修复 Diff 是否引入回归；与本轮修复无关的新发现记入 Unresolved，仅在构成 P0 时中止当前轮。
+- 问题根源是需求或已确认决策未定义的语义（如旧数据算不算完整、边界值取舍）时，不计 P1 缺陷：Main 按 `core/workflow.md` §3 Clarify 向用户提问，答复写入 `decisions.md` 后再作为修复输入，不占用修复轮次。
+
+定向修复步骤：
+
+1. 把 Finding、证据和验收条件交给原 Implementer，保持原模型；升级条件与成本闸门见 `core/model-routing.md` §5。
+2. 修复前先运行针对性回归得到 red，修复后得到 green，写入本轮 Handoff（`core/task-contract.md` §6）；测试输入或断言变化时重建对应失败回归证据，输入未变时引用原失败证据。
 3. Primary Reviewer 检查修复 Diff，确认原 Finding 已解决。
 4. Finding 来自补充 Review 且修复后仍有实质争议时，由对应 Reviewer 定向复核该项。
 
@@ -213,15 +235,16 @@ Acceptance 结果确定后，Main 做一次轻量结束评估（`core/project-me
 
 ## 11. 阶段预算
 
-阶段预算是软检查点：初始预算到达时保存进度并汇报；仍有明确下一步且持续有效进展时，Main 可以延长，并按下表的间隔再次检查。
+阶段预算是软检查点：初始预算到达时保存进度并汇报；仍有明确下一步且持续有效进展时，Main 可以延长，并按下表的间隔再次检查。「首个产出」是硬检查点：到点仍未产出时，Main 立即要求执行者停止调查、先交付该产出或报告阻塞。
 
-| 阶段 | 初始预算 | 延长检查间隔 |
-|---|---:|---:|
-| Research | 30 分钟 | 20 分钟 |
-| Implement | 60 分钟 | 30 分钟 |
-| Visual Implementation | 90 分钟 | 30 分钟 |
-| Test | 30 分钟 | 20 分钟 |
-| Review（所有轮次合计） | 20 分钟 | 15 分钟 |
-| Debug | 45 分钟 | 30 分钟 |
+| 阶段 | 初始预算 | 延长检查间隔 | 首个产出 |
+|---|---:|---:|---|
+| Research | 30 分钟 | 20 分钟 | 15 分钟：已确定结论写入报告 |
+| Implement | 60 分钟 | 30 分钟 | 15 分钟：首个失败回归日志 |
+| 定向修复（每轮） | 30 分钟 | 15 分钟 | 10 分钟：首个 Finding 的 red 日志 |
+| Visual Implementation | 90 分钟 | 30 分钟 | 20 分钟：首张实现截图 |
+| Test | 30 分钟 | 20 分钟 | — |
+| Review（所有轮次合计） | 20 分钟 | 15 分钟 | — |
+| Debug | 45 分钟 | 30 分钟 | 20 分钟：复现步骤或失败日志 |
 
 Primary、Secondary 和 Escalation Review 共用 Review 预算，并按实际记录各 Reviewer 的耗时和工具状态。连续两个检查点没有可验证进展时，按 `core/references/recovery.md` 处理。

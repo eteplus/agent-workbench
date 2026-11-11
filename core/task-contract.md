@@ -21,10 +21,10 @@
 ### References
 
 - 加载表路径相对于 `AGENT_WORKBENCH_ROOT`。Main 派发前把 References 解析为绝对路径，逐项写明章节、REQUIRED / OPTIONAL 和适用条件，或给出完整摘录并注明来源。
-- 章节边界按当前标题定位。
+- 章节边界按当前标题定位。执行者只读指定章节：先 grep 标题行号，再用 Read 的 offset / limit 读该章节，不整篇读取多章节文件。
 - 涉及实现 / Review / Test 时，同时提供原始需求和验收正文。
 - 条件未触发的项写明依据；必需项缺失或条件有歧义时交 Main 判断。
-- 同阶段修正与定向修复引用原 Contract，只补变化的范围、Finding、检查和交付路径；已有完整输入不重复抄写或加载，原必需输入与权限继续生效。
+- 同阶段修正与定向修复引用原 Contract，只补变化的范围、Finding、检查和交付路径；已有完整输入不重复抄写或加载，原必需输入与权限继续生效。定向修复使用 §2「定向修复 Contract」的短模板。
 
 ### 必需输入
 
@@ -72,7 +72,7 @@ Scope: <允许只读检查的文件、模块及边界；写入权限见 Allowed 
 Context: <需求、方案、代码位置、前序证据和相关规范；规则摘录注明来源>
 Project Memory: <N/A / 本次必需的相关条目及其代次、来源与状态；条目上限与读取规则见 core/project-memory.md §3>
 Implementation Evidence: <关联实现版本及绝对证据路径，见 core/acceptance.md §2；实施前尚未生成时说明，非代码任务 N/A>
-Retrieval: <按 core/references/code-retrieval.md 选择 CodeGraph / rg / fd / Read / sed；或 N/A>
+Retrieval: <按 core/references/code-retrieval.md 选择 CodeGraph / rg / fd / Read；或 N/A>
 Time Budget: <按 core/acceptance.md §11 的阶段预算；已知硬限制>
 Deliverables: <Task Root 内的绝对交付路径、内容、唯一写入负责人及本角色证据目录>
 Constraints: <适用权限；各检查的完整命令、运行目录、范围和绝对日志路径（使用 run-check.sh）；手工输出与生成输出的位置；授权读取自身 PI_PROVIDER / PI_MODEL / PI_REASONING_LEVEL，必要时 PI_SESSION_FILE>
@@ -80,6 +80,22 @@ Acceptance Criteria: <可观察、可验证的完成条件>
 Decision Authority: <已确认决策 / 项目约定 / Agent 可提出建议的边界；Product / Domain Approval 负责人>
 Developer Review Requirement: <REQUIRED | RECOMMENDED | NOT REQUIRED；见 core/references/developer-review.md>
 Final Response: <状态、交付路径、未完成和未验证事项>
+```
+
+### 定向修复 Contract
+
+只写本轮变化；未列字段沿用原 Contract。每条 Finding 一行，写可执行的预期断言，不复述背景或规则。
+
+```text
+原 Contract: <绝对路径>
+Round: <n> / 2
+Model / Thinking: <沿用或变化；变化时新开 Session，见 core/workflow.md §5>
+Findings:
+  | ID | File:Line | 预期断言（red → green） |
+Out of Scope: <本轮不处理的 P2 / 已关闭项>
+Decisions Added: <新增 Decision ID；无则 None>
+Deliverables: <handoff-fix-<n>.md 与 evidence/v<n+1>/ 的绝对路径>
+Time Budget: <core/acceptance.md §11「定向修复」行>
 ```
 
 ## 3. Workspace Baseline
@@ -134,8 +150,8 @@ Visual Implementation 额外填写：
 | Research | `research.md` | 结论、事实/推断、文件/符号/行号或来源、影响、风险、待确认事项 |
 | Debug（诊断） | `debug-report.md` | 症状、复现步骤、环境、日志/源码证据、假设、已排除原因、根因结论、建议修复与验证；未确认的原因标为假设 |
 | 有实质决策 | `decisions.md` | 选项、依据、取舍、来源、负责人和状态 |
-| Plan | `plan.md` | 目标/非目标、范围、调用链、契约、兼容性、步骤、测试、风险与回滚 |
-| Implement | `handoff.md` | 实现摘要、修改文件及意图、契约/兼容性、Implementation Walkthrough、实际检查、未覆盖项、风险、Review 重点、实际模型和 Thinking |
+| Plan | `plan.md` | 目标/非目标、范围、调用链、契约、兼容性、步骤、验收 → 入口 → 测试文件 → 断言清单、适用时的派生状态真值表、风险与回滚 |
+| Implement | `handoff.md`；定向修复每轮 `handoff-fix-<n>.md` | 实现摘要、修改文件及意图、契约/兼容性、Implementation Walkthrough、实际检查、未覆盖项、风险、Review 重点、实际模型和 Thinking |
 | Visual Implementation | `visual-report.md` + `screenshots/` | 参考图、Route、Viewport、页面状态、最终截图、差异与修正、浏览器结果、限制；Handoff 引用报告 |
 | Primary Review | `review.md` | Review 范围、Finding、严重级别、文件/行号、证据、需求/决策/规范依据、Agent 新增假设、修复建议和限制 |
 | Secondary Review | `review-secondary.md` | 独立 Review 范围、Finding、证据和限制 |
@@ -148,10 +164,11 @@ Visual Implementation 额外填写：
 ### 通用交付规则
 
 - 文件交付任务把完整内容写入指定文件；写入失败时说明原因。
+- 报告（Research、Handoff、Review、Test）以不超过 20 行的「状态」块开头：结论状态、实际模型、对应版本、各 Finding / 检查的一行结果和未验证项。Main 验收先读该块（`core/workflow.md` §7）。
 - 以 `core/templates/` 中的模板为起点，删去不适用的章节并说明 `N/A`；标题、字段说明和正文使用 Output Language。
 - 报告中的结论链接到可核验的源码、Diff、测试输出或来源；证据文件已保存的内容用链接引用，不在报告中复述清单、哈希或日志。
 - 每份阶段报告（Research、Handoff、Review、Test）列出实现与指定报告之外的手工写入：绝对路径、用途和权限依据，无则 None。验证命令自身的输出按 Constraints 记录。Main 在阶段交付时对照工具结果核对，越界按 `core/permissions.md` §2 处理。
-- 启动核验段（§1）列出已加载的规则和需求输入。Main 在交付时核对这些输入与报告内容相符；报告与已知事实矛盾、必需输入疑似遗漏或加载可疑时，再读取对应 Session 事件核验。必需输入确实缺失时，补读后复核受影响的工作，并在报告中如实标注补读。
+- 启动核验段（§1）列出已加载的规则和需求输入。Main 在交付时核对这些输入与报告内容相符；Reviewer 报告声称覆盖完整时，Main 用 `scripts/session-progress.mjs <Session 文件> --reads` 对照 Contract 的 REQUIRED 输入。报告与已知事实矛盾、必需输入疑似遗漏或加载可疑时，再读取对应 Session 事件核验。必需输入确实缺失时，补读后复核受影响的工作，并在报告中如实标注补读。
 - 代码交付和检查报告引用对应的 Implementation Evidence。
 - Visual Implementation 截图默认保存到 `screenshots/`（如 `iteration-1.png`、`final.png`）；用户提供的参考图引用其原始路径。
 - 报告中的链接相对于报告所在目录；Contract 中的写入、交付和日志路径使用绝对路径。
@@ -159,7 +176,7 @@ Visual Implementation 额外填写：
 ### `overview.md`：任务总览
 
 - 所有 L2 任务由 Main 创建和维护，模板见 `core/templates/overview.template.md`。
-- 顶部「状态」是唯一的当前状态入口：当前 Main 配置、阶段、授权及来源、阻塞、Verdict、Developer Review 状态、已提交 Commit 和外部操作结果，尚未发生的写 None。Intake、阶段切换和每次续接结束时更新。
+- 顶部「状态」是唯一的当前状态入口：当前 Main 配置、阶段、授权及来源、用户设定的模型限制与费用上限（`core/model-routing.md` §5）、阻塞、Verdict、Developer Review 状态、已提交 Commit 和外部操作结果，尚未发生的写 None。Intake、阶段切换和每次续接结束时更新。
 - 授权、模型切换、提交、外部操作和写入权移交记录在「执行历史」，附时间和证据；历史记录只描述过去，当前权限以顶部状态为准。
 - 它是导航页和审阅摘要：用相对路径链接其他产物，只写摘要。
 - 记录 Workspace Baseline 摘要、重叠路径和处理方式；有授权重叠路径时链接 `workspace-baseline/`。
@@ -182,6 +199,8 @@ L2 任务涉及实质性的产品行为、交互设计、架构边界、技术�
 所有 L2 实现任务的 Handoff 包含 `Implementation Walkthrough`：关键变更与需求/决策的对应关系、核心调用链或数据流、关键抽象/状态/领域规则、技术取舍、扩展入口和排查入口，结合真实文件、符号和必要行号说明。模板见 `core/templates/handoff.template.md`。
 
 实际模型和 Thinking 附元数据来源（`core/model-routing.md` §4）。
+
+定向修复每轮写新文件 `handoff-fix-<n>.md`：顶部状态写本轮版本、模型与 Implementation Evidence，正文只写本轮 Finding 的 red / green 证据和变化的 Walkthrough，并链接上一份 Handoff。已交付的 Handoff 保持原样，最新一份就是当前状态。
 
 ## 7. 完成状态
 

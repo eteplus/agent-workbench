@@ -52,6 +52,7 @@ Primary Reviewer、Secondary Reviewer 和 Reviewer Escalation 都属于 Reviewer
 - 所有 Agent 只写 Contract 中的绝对 Allowed Paths，包括报告和一次性脚本；内部产物、证据目录和 Task Root 不构成隐含写入豁免。手工脚本与重定向输出写入本角色在 Task Root 下的证据目录；验证命令自身生成的缓存、构建输出和系统临时文件，在 Constraints 中单独声明位置。路径声明是行为约束，并非文件系统沙箱。
 - 发现或无法排除越界写入时，停止相关写入并报告 Main，暂停最终 PASS。Main 核对已知路径的内容归属、覆盖或暴露影响以及证据有效性；问题解决、证据保存到授权位置后再恢复验收。越界事实如实记录；现有文件保持原样，等待用户决定处理方式。
 - Git commit / push、切换分支、创建或删除 worktree 需要用户对当前任务明确授权。
+- 代码工作区由所有子 Agent 共享：`git stash`、`git checkout -- <path>`、`git reset`、用旧版本临时覆盖实现文件等回退操作，会让并行的 Reviewer / Tester 读到中间态，也可能丢失尚未采集的改动。需要旧版本内容时用 `git show <ref>:<path>` 输出到本角色证据目录；误改文件时停止写入并报告 Main，由 Main 核对后恢复。
 - 完整保留用户已确认的决策、任务开始前的用户修改和其他任务的变更。
 - Main 在任务开始时记录 Workspace Baseline（`core/task-contract.md` §3）：默认排除与既有改动重叠的路径；必须修改时先获授权并建立任务前快照；无法安全区分时暂停相关路径。
 - 截图和测试使用授权的隔离测试数据，既有业务记录保持只读。确需修改时，先说明对象、影响、快照和恢复方式并取得明确授权；隔离浏览器不等于隔离数据库。
