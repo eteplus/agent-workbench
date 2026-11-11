@@ -1,34 +1,18 @@
 # 代码检索
 
-适用于 Main、Repo Researcher、Implementer、Reviewer 和 Tester。需要跨文件代码分析时，通过 Task Contract 将本文件传给实际执行的 Agent。
+适用于跨文件符号定位、调用链追踪与变更影响分析。Main 在 Intake 阶段仅做模块边界界定与入口核对（`core/workflow.md` §3），完整的调用链追踪与影响面分析交由 Researcher 或 Implementer 执行。
 
-## 工具选择
+## 工具选择与效率
 
 | 工具 | 适用场景 |
 |---|---|
-| CodeGraph | 跨文件符号关系、调用链和变更影响分析 |
-| `rg` | 精确文本、标识符、配置键和引用搜索 |
+| `Read` | 读取源码与文档；按完整逻辑块设置 `offset/limit`（如一次 100–200 行），避免在 Shell 中反复跑数十次小切片 `sed -n` |
+| `rg` / 原生 `grep` | 精确文本、标识符与引用搜索；限定源码与文档目录（如 `apps/`、`packages/`、`src/`、`docs/`），排除 `node_modules`、构建目录与隐藏工具缓存 |
 | `fd` | 文件名、目录和路径定位 |
-| `Read` | 读取源码、文档和必要上下文；局部片段用 offset / limit |
+| CodeGraph | 跨文件调用链与符号关系增强（可选）；Review 阶段以 `git diff` + `Read` 为主，仅在跨文件调用方不明时定点补查 |
 
-CodeGraph 使用 [@colbymchenry/codegraph](https://github.com/colbymchenry/codegraph)，属于可选检索增强。按当前 Runtime 暴露的 MCP Schema 或 CLI Help 使用；未安装或不可用时，使用 `rg` / `fd` / `Read` 继续工作。
-
-## 检索规则
-
-1. 跨文件结构、调用链或影响分析优先使用 CodeGraph，并按当前 Schema 限定符号、文件与输出范围；`maxFiles` 只限制文件数，不保证结果不会截断。结果截断时从返回的完整结果路径补读缺失范围；同一未解问题不反复查询相同符号。简单文本和路径问题直接使用 `rg` / `fd`。
-2. CodeGraph 返回的原文视为已读，复用已覆盖片段；关键结论只补核对未覆盖或已变化的工作区源码、Git Diff 和测试证据。
-3. 图谱索引可能落后于工作区。出现过期提示时，按 CodeGraph 当前文档更新索引；无法确认索引状态时，以当前源码和确定性检索为准。
-4. CodeGraph 不可用时改用 `rg` / `fd` / `Read`，只在影响覆盖范围时说明限制。
-5. 文件内容用 `Read` 读取（已知行号时用 offset / limit），同一片段在未修改时不重复读取；Shell 中的 `sed -n` / `cat` 只用于管道处理命令输出。修改文件的工具要求见 `core/acceptance.md` §1。
+同一未修改文件片段不重复读取；修改任何仓库文件统一使用 `edit` / `write`，严禁使用 `python3` / `node` / `sed -i` 脚本改写文件（`core/workflow.md` §1）。
 
 ## 消费扫描与删除证据
 
-仅在任务依赖消费数量、零引用结论、删除或契约收缩时使用：
-
-1. 一次性扫描器先通过覆盖本次引用形态、别名和同名异源的小型自检，再扫描仓库。
-2. 数量与清单从同一结果生成；零消费证据和保留约定分别列出，未解析引用标为待确认。
-3. 缺少关键证据时暂停依赖该结论的删除或收缩；基线与修改后结果遵循 `core/task-contract.md` §5–6 的写入归属，分别保存。
-
-## 证据
-
-Research、Implement、Review 和 Test 的代码事实应尽可能包含文件路径、符号、行号及支持结论的源码 / Diff / 测试证据。图谱推断和模型摘要不能单独证明实现行为。
+任务依赖「零引用删除」或公共字段收缩时：确认全仓静态与动态引用形态（含重导出、共享 Schema、测试夹具与 ADR 说明），确保统计清单与修改范围一致；存在未确认引用时先保留或报告 Main，不盲目删除。

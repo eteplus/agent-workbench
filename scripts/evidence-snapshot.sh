@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Implementation Evidence (core/acceptance.md §2): one command to capture, one to compare.
+# Baseline / checkpoint snapshot for dirty overlaps or explicit version checks (core/task-contract.md §3).
 #   bash evidence-snapshot.sh <base-commit> <absolute-out-dir> [-- <paths>...]
 #   bash evidence-snapshot.sh --verify <absolute-out-dir>
-# Run inside the target repository. The out dir is excluded from its own snapshot.
+# Run inside the target repository. Also copies untracked files in scope so line-level diffs remain available.
 
 usage() { printf 'Usage: bash evidence-snapshot.sh <base> <absolute-out-dir> [-- paths...] | --verify <absolute-out-dir>\n' >&2; exit 2; }
 
@@ -13,8 +13,12 @@ capture() { # <base> <dir> <paths...>
   prefix=$(git -C "$dir" rev-parse --show-prefix 2>/dev/null) && [[ -n $prefix ]] && spec+=(":(top,exclude)$prefix")
   git diff --binary "$base" -- "${spec[@]}" > "$dir/implementation.diff" || return 2
   shasum -a 256 < "$dir/implementation.diff" | cut -d' ' -f1 > "$dir/diff-fingerprint.txt"
+  mkdir -p "$dir/untracked" || return 2
   git ls-files --others --exclude-standard -- "${spec[@]}" | while IFS= read -r path; do
+    [[ -f $path ]] || continue
     printf '%s\t%s\n' "$(shasum -a 256 < "$path" | cut -d' ' -f1)" "$path"
+    mkdir -p "$dir/untracked/$(dirname "$path")"
+    cp -p "$path" "$dir/untracked/$path"
   done > "$dir/untracked-hashes.txt"
   git status --porcelain -uall -- "${spec[@]}" > "$dir/git-status.txt"
 }
@@ -29,8 +33,15 @@ if [[ $1 == --verify ]]; then
   capture "$(cat "$dir/base-commit.txt")" "$now" "${paths[@]}" || exit 2
   result=0
   for file in diff-fingerprint.txt untracked-hashes.txt git-status.txt; do
-    cmp -s "$dir/$file" "$now/$file" || { printf 'MISMATCH %s\n' "$file"; diff "$dir/$file" "$now/$file" | head -20; result=1; }
+    if ! cmp -s "$dir/$file" "$now/$file"; then
+      printf 'MISMATCH %s\n' "$file"
+      diff "$dir/$file" "$now/$file" | head -20
+      result=1
+    fi
   done
+  if [[ -d $dir/untracked ]] && ! cmp -s "$dir/untracked-hashes.txt" "$now/untracked-hashes.txt"; then
+    diff -ruN "$dir/untracked" "$now/untracked" | head -60
+  fi
   (( result )) || printf 'MATCH fingerprint=%s\n' "$(cat "$dir/diff-fingerprint.txt")"
   exit "$result"
 fi

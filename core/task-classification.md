@@ -1,73 +1,72 @@
 # 任务分级
 
-任务级别由影响范围和风险决定，任务类型由实际交付目标决定，两者分别判定。
+任务级别由影响范围和风险决定，任务类型由交付目标决定，两者分别判定。Main 在动手修改或派工前必须显式判定级别。
 
-## 1. 任务级别
+## 1. 任务级别与 Developer Review 判定
 
-| 级别 | 实施前判据 | 执行方式 |
+| 级别 | 判据 | 执行方式 |
 |---|---|---|
-| L0 | 仅文字修改，无执行行为、接口或数据语义变化；或答案可由单一已知来源确定的只读查询 | Main 直接处理，核对文字或来源 |
-| L1 | 非 L0；预计单文件、总变更不超过 50 行，可含局部低风险行为修复；无公共接口/数据契约变化、跨模块影响或实质风险 | Main 直接处理，运行受影响检查 |
-| L2 | 非 L0/L1；代码预计涉及多文件，或有公共契约、跨模块行为、兼容性、安全、稳定性等实质风险 | 代码实现委派 Implementer 并独立 Review；其他任务按类型选择执行者和验收 |
+| L0 | 纯文字、文案标签、注释或文档微调，无执行逻辑、接口或数据语义变化；或单一已知来源的只读查询 | Main 直接用 `edit/write` 修改或回答，核对受影响断言 |
+| L1 | 非 L0；预计**单模块、不超过 3 个文件且总变更（增+删）不超过 50 行**的局部低风险修改，**不涉及共享类型/Schema、公共接口、数据库或 ADR 变更** | Main 直接用 `edit/write` 处理并通过 `run-check.sh` 运行受影响检查 |
+| L2 | 非 L0/L1；跨多文件（>3 个文件或 >50 行增删）、多模块协作、新增组件/页面，或触及**共享类型/Schema、公共 API/事件、数据库迁移、ADR 契约、兼容性、安全或并发风险** | 委派 Implementer 实现，并由跨家族 Reviewer 独立审查 |
 
-先判断风险与契约，再按上表选择唯一级别。文字修改按内容影响分级，与文件数无关；改变执行方式的 Agent 规则、脚本配置或公共文档契约按实际影响分级。纯 Research / Plan / Review / Test 按调查范围、决策影响和验证风险分级：简单只读查询由 Main 完成，需要独立上下文或跨模块证据时按 L2 委派。边界不清时取较高一级。
+文字与文案修改按实际行为影响分级；改变代码类型、Zod/JSON Schema、数据库表结构、执行脚本或架构契约的修改（即使是删除字段）一律按 **L2** 执行。
 
 ### L1 实施中升级
 
-变更行数按 Git Diff 的新增与删除行数之和计算。实际触及第二个文件、总变更超过 50 行，或出现跨模块行为、接口/数据契约及实质风险时：
+Main 在直接处理 L1 时，一旦发现实际改动超出 3 个文件、增删合计超过 50 行，或触及共享 Schema、公共接口与跨模块风险：立即停止直接修改，保留已完成改动，升级为 L2 并通过 Contract 委派 Implementer 接续完成。
 
-1. Main 暂停直接修改。
-2. 保存当前 Diff 和工作区状态。
-3. 升级为 L2，通过 Herdr 委派 Implementer。
-4. 保留已完成的修改与用户既有变更。
+### Developer Review 触发判定（L2 任务必判）
+
+Main 在 L2 Intake 阶段同步判定并记录 `Developer Review: REQUIRED | RECOMMENDED | NOT REQUIRED`：
+- **`REQUIRED`**：满足任一条件——(1) 用户可见产品行为或交互界面实质变化；(2) 公共 API、事件、共享数据结构或数据库 Schema/迁移变化；(3) 架构边界、Accepted ADR 修订、安全权限或并发一致性调整；(4) 用户或 Issue/Spec 明确要求。
+- **`RECOMMENDED` / `NOT REQUIRED`**：遵循既有模式的纯内部实现调整；纯 Research / Plan / Review / Test 默认 `NOT REQUIRED`。审阅包与批准流程见 `core/references/developer-review.md`。
+
+### 收尾增量分级
+
+L2 任务在 Gate 或 Developer Review 阶段产生的增量改动按增量自身风险判定：无生产逻辑与契约风险的微调走 `core/acceptance.md` §5 **收尾快速通道**；触及生产逻辑或契约的改动走 L2 定向修复与复审。
 
 ## 2. 任务类型
 
 - Research
 - Plan / Architecture
 - Implement
-- Visual Implementation
+- Visual Implementation（以参考图、现有页面或状态规范为准，需真实浏览器渲染与模型读图核验的 UI 实现）
 - Review
 - Test
-- Debug
+- Debug（先复现与定位根因；需修复时按修复本身级别执行）
 - Documentation
 - Issue / Ticket
 - Mixed
 
-Visual Implementation 是 Implement 的专项类型，适用于以截图、设计稿或现有网页为参考、需要高保真还原并用真实浏览器截图验证的 UI 任务。它沿用 L0/L1/L2 分级，L2 由 Implementer 承担。
-
-Debug 只负责复现、诊断和收集证据；需要修复代码时，按修复本身的影响重新分级并进入对应的实施路径。
-
 ## 3. 流程选择
 
-| 任务类型 | 基础流程 |
+| 任务类型 | 最小必要流程 |
 |---|---|
-| Implement | Intake → Research（按需）→ Clarify（按需）→ Plan → Implement → Handoff → Test / Review → Gate → Acceptance |
-| Visual Implementation | Intake → Research（按需）→ Clarify（按需）→ Plan → Implement + 浏览器验证 → Handoff → Test / Review → Gate → Acceptance |
+| Implement (L2) | Intake → Research（按需）→ Clarify（按需）→ Plan → Implement → Handoff → Review → Gate → Developer Review（按条件）→ Acceptance |
+| Visual Implementation (L2) | Intake → Research（按需）→ Clarify（按需）→ Plan → Implement + 浏览器验证 → Handoff → Review → Gate → Developer Review（按条件）→ Acceptance |
+| Implement / Visual (L0/L1) | Intake（显式确认满足 L0/L1 判据）→ Main 直接修改 + `run-check.sh` 检查 / 局部截图 → Acceptance |
 | Research | Intake → Research → Acceptance |
 | Plan / Architecture | Intake → Research（按需）→ Clarify（按需）→ Plan → Acceptance |
-| Review | Intake → Review → Acceptance |
-| Test | Intake → Test → Acceptance |
-| Debug（仅诊断） | Intake → Research（按需）→ 复现与诊断 → `debug-report.md` → Acceptance |
-| Debug（含修复） | Intake → Research（按需）→ 复现与诊断 → 按修复级别执行 Implement / Handoff / Test / Review / Gate → Acceptance |
-| Documentation | Intake → Research（按需）→ Implement → Test（按需）→ Acceptance |
-| Issue / Ticket | Intake → Research（按需）→ Clarify（按需）→ Plan / 外部写入 → 回读核验 → Acceptance |
-| Mixed | 组合上述最小必要阶段；每个子目标明确交付物和验收标准 |
+| Review / Test | Intake → Review / Test → Acceptance |
+| Debug | Intake → Research（按需）→ 复现与根因诊断（`debug-report.md`）→ 如需修复按级别走 L0/L1 或 L2 实施 |
+| Documentation | Intake → 修改文档 → 链接/格式检查（按需）→ Acceptance |
+| Issue / Ticket | Intake（读取项目 Tracker 规范）→ Clarify（按需）→ 外部写入授权 → 写入与单次回读核验 → Acceptance |
+| Mixed | 按子目标组合上述最小阶段 |
 
-只执行完成任务所需的阶段。`overview.md`、Workspace Baseline、`decisions.md`、Developer Review 和知识沉淀是横向机制，按 `core/task-contract.md` 与 `core/acceptance.md` 的条件触发。L2 的 Research / Review / Test 委派对应 Agent，Plan 的决策由 Main 负责；非代码任务只配置与其交付相关的角色和验收。
-
-Issue / Ticket 流程用于工作项的创建、更新等外部操作，授权与回读见 `core/permissions.md` §3。以 Issue 为需求来源的代码实施按 Implement 或 Mixed 执行。
+`overview.md`、`decisions.md` 与 Developer Review 在 L2 任务中按对应条件启用。
 
 ## 4. 方案要求
 
-L2 代码变更在实施前需要可执行方案，至少明确目标、范围、接口/数据契约、实施步骤、测试和风险。以下任一条件成立时写入 `plan.md`：
+L2 代码变更满足以下任一条件时写入独立的 `plan.md`，否则直接合并进 Contract 的 `Context & Plan`：
 
-- 预计涉及 3 个及以上文件。
-- 包含 API、接口、数据结构或数据库契约变化。
-- 涉及数据迁移、兼容性、安全或稳定性风险。
-- 需要并行实施。
-- 存在复杂回滚或跨模块依赖。
+- 预计涉及 3 个及以上业务源码文件。
+- 包含 API、SSE 事件、共享状态或数据库契约变化。
+- 涉及数据迁移、兼容性、安全或并行实施。
 
-其他 L2 任务把方案完整写入 Contract。`plan.md` 的内容要求见 `core/task-contract.md` §5。
-
-方案把验收落到可直接开工的清单：每条验收 → 真实入口（文件 / 符号）→ 测试文件 → 断言，让 Implementer 不必重做调查。涉及多个消费方读取的派生状态时，附 `core/acceptance.md` §2「状态与生命周期覆盖」的真值表。
+`plan.md` 包含：
+1. **目标与非目标**（明确做与不做的边界，核对父 Spec 中的配套 ADR / `GLOSSARY.md` / 文档义务）。
+2. **模块范围与调用链**（数据入口、流向与复用的既有函数/组件）。
+3. **契约与状态规则**（新增或修改的类型、字段；涉及异步流或多消费方派生状态时，按 `core/acceptance.md` §2 列出关键状态转换预期）。
+4. **实施步骤与验收映射**（每项核心验收对应目标模块与测试文件）。
+5. **风险与回滚**。

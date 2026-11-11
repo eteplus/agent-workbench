@@ -1,8 +1,7 @@
 #!/usr/bin/env node
 // Compact progress probe for a Pi session file: last activity, context size, cost by model, recent tools.
 // Usage: node session-progress.mjs <session.jsonl> [--reads]
-//   --reads  also list unique paths opened with the read tool (startup-input verification)
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 
 const [file, flag] = process.argv.slice(2);
 if (!file) {
@@ -10,18 +9,28 @@ if (!file) {
   process.exit(2);
 }
 
+if (file === '-' || !existsSync(file)) {
+  console.log('last_event=N/A idle_min=N/A turns=0 context_tokens=0 cost_usd=0.0000 session_missing=1');
+  process.exit(0);
+}
+
 let last, turns = 0, context = 0;
 const cost = {}, tools = [], reads = new Set();
 for (const line of readFileSync(file, 'utf8').split('\n')) {
   if (!line) continue;
-  const event = JSON.parse(line);
+  let event;
+  try {
+    event = JSON.parse(line);
+  } catch {
+    continue; // Ignore partially flushed trailing JSONL line while sub-agent is writing.
+  }
   if (event.type !== 'message') continue;
   last = event.timestamp;
   const message = event.message;
   if (message.role !== 'assistant') continue;
   turns += 1;
   const usage = message.usage ?? {};
-  context = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0); // size of the latest prompt
+  context = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
   cost[message.model] = (cost[message.model] ?? 0) + (message.usage?.cost?.total ?? 0);
   for (const block of message.content ?? []) {
     if (block.type !== 'toolCall') continue;

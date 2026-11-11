@@ -1,148 +1,93 @@
 # Core 工作流
 
-Claude Code 或 Pi 担任 Main；需要独立执行的工作由 Main 通过 Herdr 派发给 Pi 子 Agent。
+Claude Code 或 Pi 担任 Main；需要独立上下文的子任务（按需 Research、L2 实现、跨模型 Review 及按需 Test）由 Main 通过 Herdr 派发给 Pi 子 Agent。
 
 ## 1. Main 职责
 
-Main 对任务理解、风险分级、方案决策、子 Agent 委派、Gate 和最终验收负责：
+Main 负责目标对齐、风险分级、用户决策、委派调度、Gate 和最终验收：
 
-- 定义目标、范围、风险、交付物和可验证的验收条件，选择任务类型、级别与最小 Agent 组合。
-- 在 Main 完成用户决策和授权，按 Contract 通过 Herdr 委派 Pi，并依据证据决定继续、升级或暂停。
-- 维护 L2 的 `overview.md` 与决策导航，按 `core/acceptance.md` 完成 Gate、适用的 Developer Review 和最终验收。
-
-Main 的模型偏好与 Thinking 见 `core/model-routing.md` §1，实际选择以当前 Runtime 支持为准。
+- **只读边界入口**：Main 只读取需求、仓库 `AGENTS.md`（及其引用的流程规范）、目录结构、模块入口与公共契约；调用链追踪、符号细节与测试实现委派给子 Agent 完成。仓库内检索限定在源码与文档目录（排除 `.git`、`node_modules`、构建产物与隐藏工具目录）。
+- **工具与编辑硬护栏**：修改任何已有文件统一使用 Runtime 的 `edit` / `write` 工具，**严禁使用 `python3`、`node -e`、`sed -i` 或重定向脚本改写源码、测试与文档**。调用陌生 CLI 子命令前运行 `--help`；调用延迟加载或未展开声明的 MCP / 外部工具前，先通过工具搜索结果核对准确的参数字段名。
+- **集中用户交互**：所有需求澄清、方案确认、模型升级、Developer Review 与外部写入授权均在 Main 完成，再通过自包含 Contract 派发子 Agent。
 
 ### 指令优先级
 
 1. 系统与平台安全约束。
-2. 用户本次明确提出的要求。
+2. 用户本次明确提出的要求（用户明确简化或指定的流程优先于本 Workflow 默认约定）。
 3. 项目 `AGENTS.md`、项目规范和用户已确认的决策。
 4. 本 Workflow 及其按需加载的 References。
 5. Agent 自行判断。
 
-发生冲突时，暂停冲突部分并向用户说明；用户明确要求的流程优先于本 Workflow 中可配置的约定。
-
 ## 2. 任务启动与续接
 
-一次 Workflow 是一个任务生命周期，而非一次入口命令调用。Main 先判断当前请求属于哪一类：
+一次 Workflow 对应一个任务生命周期：
 
-- **同一任务**（继续、阶段切换、再次调用入口或 Session 恢复）：沿用 Task ID、Task Root、当前阶段和已确认决策，从当前上下文或 `overview.md` 直接续接。恢复现场只读 Task Root，不依赖项目记忆重建，也不新增记忆事件。
-- **目标调整**：只更新受影响的范围、决策、计划和验收；超出授权时先确认。按本轮新增改动的类型与风险选择最小执行路径，Task ID 与原任务未完成的 Gate / 批准保持不变。仅记录用户已确认规则且不改执行行为的文档，按 Documentation 处理，不沿用原代码任务的委派与整套检查。
+- **同一任务**（继续、阶段切换、再次调用入口或 Session 恢复）：沿用 Task ID、Task Root、当前阶段和已确认决策，从当前上下文或 `overview.md` 直接续接。
+- **目标调整**：只更新受影响的范围、决策、计划和验收；超出原授权时先向用户确认。新增小改动按其自身风险分级（例如补文档或改文案按 L0 / Documentation 直接处理），原任务尚未完成的 Gate 或批准保持有效。
 - **独立目标**：建立新任务和新 Task Root；归属不明时只澄清这一点。
 
 ### 任务语言
 
-Main 依据用户实际目标确定 `Output Language`：中文目标用中文，英文目标用英文；用户指定语言时从其指定。判断只看用户目标；入口说明、模板、引用资料和代码的语言不计入。混合语言无法判断时只澄清语言偏好；只有 URL 或编号时沿用用户最近使用的语言。
-
-`Output Language` 写入 `overview.md`（无总览时留在任务上下文）并传入每份 Contract。续接时沿用；用户明确切换时更新当前产物与后续交付，历史原始证据保留原文。
-
-所有 Agent 的回复、产物标题/字段说明/正文、Handoff、Review、复盘及外部 Issue 文本均使用任务语言。路径、代码标识符、命令、协议字段/状态码和原始日志保持原样；引用外语证据时附任务语言说明。模板只提供结构，生成时翻译其中的自然语言。
-
-### 启动与简报
-
-新任务按 §7 的「启动」行加载规则，完成分级与授权核对后，按当前阶段加载所需章节。续接只补充缺失或已变更的规则。
-
-Main 在任务开始、阶段切换或阻塞时向用户简报；授权范围内的常规推进直接进行。用户可直接说「继续」或调整目标。每次续接先核对当前授权与实际工作区，结束时同步 `overview.md` 顶部状态和执行历史（`core/task-contract.md` §6）。
-
-子 Agent 只接收当前任务所需的规则、输入和交付路径。Core 与 Contract 是默认执行路径；Skill 按用户指定或专项需要加载，加载与失败规则见 `core/task-contract.md` §1，调用语法见 `runtimes/README.md`。
+Main 依据用户实际目标确定 `Output Language`（中文目标默认使用简体中文、不使用繁体字，英文目标使用英文，用户明确指定时从其指定；忽略模板、规则和代码自身语言）。所有回复、产物正文、Review 与外部 Issue 草稿均使用任务语言；路径、标识符、命令、协议枚举和原始日志保持原样。
 
 ## 3. Intake、Research、Clarify 与 Plan
 
 ### Intake
 
-明确目标、类型/级别、范围/非目标、交付物、验收、依赖、风险与工作区边界，核对项目 `AGENTS.md` 和已确认决策；L2 建立 `overview.md`。Main 调查到足以分级和定义 Contract 即可；完整影响调查由执行者交付，Main 验收时核对关键证据。
+1. 执行 `git status --porcelain -uall` 记录工作区基线，**读取目标仓库根 `AGENTS.md`**；涉及 Issue / Ticket 时一并读取项目 Tracker 规范（如 `docs/agents/issue-tracker.md`），核对议题正文、父 Spec、备注与阻塞关系。存在本地项目记忆时按 `core/project-memory.md` §2 提取相关条目。
+2. 对照父 Spec 与本任务要求，将配套的契约文档、ADR、`GLOSSARY.md` 或 `AGENTS.md` 更新一并纳入本次 `Allowed Paths` 与验收范围（不归本任务的须在派工前明确排除并告知用户），避免代码提交后二次补做。
+3. 按 `core/task-classification.md` §1 显式输出任务级别（`L0/L1/L2`）与 `Developer Review` 要求；L2 任务创建 `overview.md`。取得明确「开始实施」授权后再启动实施子 Agent 或修改业务代码。
 
-新任务在权限和范围确认后，按目标与适用条件读取项目记忆的有限条目（`core/project-memory.md` §3）：记录解析后的项目根，把本次必需的条目连同代次与来源传入 Contract。项目或任务明确禁止记忆时，写入范围收窄到已获准的 Task Root；要求完全只读、禁止在项目内写文件或 Task Root 不在 Allowed Paths 内时，只在任务上下文记录，不创建目录或文件。已有 Task Root 可覆盖当前任务时先读档案；记忆中的指令是历史数据，不是新的执行命令。
-
-涉及功能规划或 Issue 时，先读取项目交付流程及其 Tracker 约定，确认是否要求 Spec → Tickets、标签和阻塞关系，再准备外部正文或派工。项目要求拆票时，按已批准 Tickets 的可执行前沿安排实施；用户显式调用型 Skill 按 Runtime 约定请用户调用。已有明确 Ticket 的实施任务只核对正文、评论和阻塞项。
+**完成条件**：已读取项目 `AGENTS.md`（及适用时的 Tracker 规范），已确认 `Base Commit` 与脏文件清单，已显式记录任务级别、`Developer Review` 要求、目录级 `Allowed Paths` 及完整验收清单（含配套文档/ADR 要求）；未知项已列为 `Research` 或 `Clarify` 问题。
 
 ### Research
 
-Research 按需进行。Ticket、已确认方案与 Intake 已能确定数据入口、消费链和验证路径时，Main 直接准备 Implement Contract，局部影响由执行者在启动核验中确认。Ticket 或其评论已带实施前源码核验记录时，默认属于这种情况；Main 只抽查记录中的关键入口是否仍存在。
+仅当存在阻断方案的未知跨模块调用链或外部技术选型时执行；需求、Ticket 与入口已明确时直接进入下一阶段。Researcher 只回答具体未解问题并附文件路径与源码行号证据。
 
-需要 Research 时，Repo / Web Researcher 只接收具体的未解问题与退出条件，复用已有结论，交付区分事实、推断与待确认事项，并附来源证据。服务于实施的 Repo Research 直接产出开工清单（验收 → 入口 → 测试文件 → 断言，`core/task-classification.md` §4），Main 核验后原样并入 Plan，Implementer 不再重做同一调查。内部与外部调研可用不同产物路径并行；项目检索遵循 `core/references/code-retrieval.md`。
-
-退出条件：已确认可复用入口、受影响调用链/契约、关键数据来源和验证路径，阻断方案的未知项已查明或列为用户决策。每次检索对应一个尚未回答的问题；达到条件就写方案，非阻断细节交实施者核对。超出 Intake 的深入调查委派 Researcher。连续工作每 10 分钟向用户简报已确定事项、阻塞问题和下一项交付；这是沟通检查点，与阶段预算分开计算。
-
-依赖调研结论进入 Plan / Implement 前，Main 按 `core/acceptance.md` §7 的 Research 条件核验关键结论与写入。涉及消费扫描或删除时，把 `core/references/code-retrieval.md` 的消费扫描要求交给执行者。
+**完成条件**：所有阻断方案的未知问题均已有源码/文档证据结论，或已收敛为待用户拍板的明确选项。
 
 ### Clarify
 
-只在歧义会实质影响行为、范围、兼容性、数据或验收时询问用户；能从会话、代码、文档和已确认决策查明的问题先自行解决。
+仅当歧义会实质改变用户可见行为、公共契约、范围或数据安全时向用户提问；能从代码入口和项目规范查明的细节由 Agent 自行确认。同一轮围绕同一决策边界合并提问，给出选项与推荐依据，支持「全部按推荐」批量确认（`core/permissions.md` §1）。
 
-需要用户回答、决策或批准的交互全部在 Main 进行。子 Agent 遇到新歧义时，把问题、证据、选项和建议报告 Main，由 Main 提问、接收回答并记录来源。
-
-重要业务歧义或用户要求深入澄清时，Main 可使用 `grilling` / `grill-with-docs` 等辅助 Skill；使用前按 `runtimes/README.md` 的调用规则和 `skills/README.md` 的前置条件核验。Expert 只在重大架构或专业风险需要时提供独立分析，用户交互仍在 Main。
-
-Main 按前置决策的顺序提问。每个问题说明歧义、选项、影响和有证据的推荐；推荐前先查可复用能力和指标口径。一轮问题围绕同一个决策边界，标出真正阻断实施的项；后续只追问新增或冲突部分。确认范围和批准来源遵循 `core/permissions.md` §1。用户确认后，Main 把实质性决策写入 `decisions.md`，必要时同步 `plan.md`；未确认的假设标为待确认，依赖它的工作暂停。
+**完成条件**：所有影响行为、契约、范围或外部副作用的待决项均已获用户确认并记入 `decisions.md`，无阻塞实施的 `PROPOSED` 项。
 
 ### Plan
 
-L2 代码变更在实施前需要可执行方案，`plan.md` 的生成条件和方案内容见 `core/task-classification.md` §4。重大架构决策可委派 Expert 独立分析，最终方案由 Main 确认。
+满足 `core/task-classification.md` §4 条件时写入独立的 `plan.md`，其余直接写入 Contract 的 `Context & Plan`。方案定义目标、模块边界、接口/数据契约与状态规则、实施步骤与验收映射，具体行级实现留给 Implementer。
+
+**完成条件**：每条原始验收条件（含配套文档/ADR）均已映射到目标模块与验证方式，接口/状态契约无歧义，Implementer 可直接开工。
 
 ## 4. 工作流阶段
 
 常规 L2 实施任务：
 
-`Intake → Research（按需）→ Clarify（按需）→ Decision Trace（有实质决策时）→ Plan → Implement → Handoff → Test / Review → Gate → Developer Review（按条件）→ Acceptance → 知识沉淀（按需）→ 复盘（按需）`
+`Intake → Research（按需）→ Clarify（按需）→ Plan → Implement → Handoff → Review（并行按需 Test）→ Gate → Developer Review（按条件）→ Acceptance & Cleanup`
 
-接受验收结果后在知识沉淀阶段做一次结束评估，按 `core/project-memory.md` §4 得到 SKIP / NO_CHANGE / PROPOSE / READY；记忆结果是独立记录，不改变业务 Verdict。
+- L0/L1 任务在显式确认满足 `core/task-classification.md` §1 判据后，由 Main 直接用 `edit/write` 修改并通过 `run-check.sh` 验证。
+- Gate 或 Developer Review 期间的无生产逻辑风险微调走 `core/acceptance.md` §5 **收尾快速通道**。
+- Acceptance 完成后按 `core/project-memory.md` §3 做一次记忆准入判断（常规任务默认 `SKIP`）；在派工和最终验收两个节点同步 `overview.md` 顶部状态。
 
-L0/L1 和纯 Research / Plan / Review / Test 任务按 `core/task-classification.md` §3 只执行最小必要阶段，阶段完成条件见 `core/acceptance.md` §7。
+## 5. 委派、等待与生命周期
 
-Debug 是独立任务分支：先交付复现与根因证据，需要修复时按修复影响重新分级并进入 Implement 路径。视觉实现沿用 Implement 路径，额外执行 `core/acceptance.md` §5 的视觉验收。
+- **按角色委派**：跨模块未知项委派 Researcher；L2 代码实现委派 Implementer（`Research → Implement` 使用新 Session，只传提炼后的方案与结论）；代码审查委派跨模型家族的 Primary Reviewer（`core/model-routing.md`）。独立 Tester 仅在需补充 Implementer 未覆盖的独立环境/端到端验证时派发（`core/acceptance.md` §2）。
+- **自包含 Contract**：每次委派使用 `core/task-contract.md` §2 的自包含 Contract，内联通用角色约束；子 Agent 按需参考指定报告模板或专项 Reference。
+- **持续等待不中断回合**：本任务有子 Agent 处于 `working` 且无需用户决策时，Main 调用 `scripts/wait-agent.sh` 有界等待；收到退出码 `1`（`still_working`）后**在同一回合内立即续调 `wait-agent.sh` 直至子 Agent 完成或异常**，不提前结束回合把等待交给用户。仅在遇到阻塞需用户决策或用户要求暂停时才结束当前回合。
+- **复用同角色 Session**：同阶段的补充指令、定向修复与定向复审，只要**未更换模型且原 Session 未逼近模型上下文窗口上限（如未达窗口 60% 或触发压缩告警）**，直接复用原 Agent Session 发送增量消息（充分利用 Prompt Cache）；已结束角色的空闲 Pane 可关闭旧进程后复用给后续角色。换模型或逼近窗口上限时，关闭旧 Agent 后启动新 Session。
+- **Pane 保留与终态回收**：`Developer Review` 待确认期间（`NEEDS DEVELOPER REVIEW`）必须保留已有子 Agent Pane 以便响应反馈；待用户明确批准达成最终 `PASS`（且无需继续追改）或任务明确取消/终止时，调用 `scripts/cleanup-agents.sh` 回收本任务全部子 Agent 与 Pane。
 
-## 5. 委派原则
+## 6. 按需加载
 
-- L0/L1 由 Main 按 `core/task-classification.md` §1 直接处理。
-- L2 代码实现由 Herdr → Pi Implementer 执行，Main 负责方案与验收。Research → Implement 使用新的 Pi Session，只传最终方案、契约、候选清单及必要证据入口。
-- 修正同阶段报告或定向修复 / 复审可沿用原 Session，但以下情况新开 Session，只传本轮 Contract、Finding、当前 Diff / Implementation Evidence 和上一份 Handoff 路径：更换模型（旧历史会按新模型单价整段重算）；原 Session 上下文已超过约 150K token（`scripts/session-progress.mjs` 的 `context_tokens`）。
-- 独立 Research、Debug 诊断、Review、Test 按需通过 Herdr 启动 Pi 子 Agent；Debug 诊断默认只读，需要修复时按修复的级别执行。
-- 委派使用 `core/task-contract.md` 的 Contract，每次只传入本次任务需要的信息；子任务沿用 Task ID，以独立 Subtask ID 区分，产物留在同一个 Task Root。
-- 结构化 Agent 状态用于协调，报告、实际 Diff 和检查结果用于验收。产物缺失、状态矛盾或 Skill 加载异常时，定向读取对应 Session 记录；TUI 屏幕仅用于终端故障诊断。
-- Herdr 的 Agent/Pane 创建、启动、等待和结果读取以当前安装版本的 CLI、MCP 或工具 Schema 为准；调用前读取当前帮助或工具描述。
-- Main 独立验收子 Agent 的交付；Herdr 运行状态和子 Agent 自报状态的含义见 `core/task-contract.md` §7。
+下表是 Main 的上下文指针表，按当前触发分支加载对应材料（同一任务内已加载的不再重读，路径相对于 `AGENT_WORKBENCH_ROOT`）：
 
-## 6. Gate 顺序
-
-依赖实质性决策的工作在确认后执行；L2 代码实施前具备可执行方案。Handoff → Test / Review → Gate → 适用的 Developer Review → Acceptance 的条件及 Verdict 见 `core/acceptance.md` §1、§6–8 与 `core/references/developer-review.md`。中断后按 `core/references/recovery.md` 从已有证据续接。
-
-## 7. 文档加载与上下文控制
-
-| Main 当前动作 | 加载章节 |
+| 触发时机 / 分支 | 加载目标 |
 |---|---|
-| 启动 | 本文件 §1–3；`core/task-classification.md` §1–3；`core/permissions.md` §1–4 |
-| 制定方案与记录决策 | `core/task-classification.md` §4；`core/task-contract.md` §6 对应产物 |
-| 选模型 / 委派 | `core/model-routing.md` §1–4；`core/task-contract.md` §1–3；初始化产物时 §5–6 |
-| 接收 Handoff | `core/acceptance.md` §1；核对实施版本时 §2「实现版本证据」 |
-| 安排 Test / Review | `core/acceptance.md` §2「验证调度」、§3；并行时 `core/permissions.md` §5 |
-| Gate / 最终验收 | `core/acceptance.md` §6–8 |
-| 判断 / 执行 Developer Review | `core/references/developer-review.md` |
-| 项目检索 / 消费扫描 | `core/references/code-retrieval.md` 对应要求 |
-| 项目记忆读取 / 结束评估 / 维护 | `core/project-memory.md` §3 / §4 / §10；默认维护范围与例外见 `core/permissions.md` §1「记忆授权」 |
-| 补充 Review / 模型升级 | `core/model-routing.md` §5；补充 Review 时加 `core/acceptance.md` §4 与 `core/references/review-escalation.md` 对应分支 |
-| 视觉验收 | `core/acceptance.md` §5；实际执行者加载 `skills/ui-impl/SKILL.md` |
-| 知识沉淀 / 复盘 | `core/acceptance.md` §9 / §10；选择辅助 Skill 时加载 `skills/README.md` 的依赖限制 |
-| 预算 / 超时 / 部分执行 | 预算见 `core/acceptance.md` §11；恢复时加载 `core/references/recovery.md` |
+| 任务启动与分级（Intake） | `core/task-classification.md` §1–3；`core/permissions.md` §1–2 |
+| 制定方案与委派子 Agent | `core/task-classification.md` §4；`core/model-routing.md`；`core/task-contract.md`；`runtimes/README.md` |
+| 跨文件符号追踪 / 零引用删除扫描 | `core/references/code-retrieval.md` |
+| 接收 Handoff / Review / Gate / 最终验收 | `core/acceptance.md`；涉及浏览器或外部 Issue 写入/关闭时加 `core/permissions.md` §3 与项目 Tracker 规范 |
+| 提交审阅包与处理 Developer Review 反馈 | `core/references/developer-review.md` |
+| 读取或更新项目记忆（存在记忆文件或准入非 SKIP 时） | `core/project-memory.md` |
+| 子 Agent 停滞、超时或中断恢复 | `core/references/recovery.md` |
 
-- 子 Agent 的必需输入以 `core/task-contract.md` §1 为准，与 Main 的加载表相互独立。
-- 先定位章节再读取正文，无关分支留到触发时再读
-- L0/L1 由 Main 直接处理，不加载委派、模型路由和 Herdr 文件
-- Developer Review 按任务要求加载
-- Runtime 列出的 Skill 只在实际使用或上级指令要求时读取
-
-规则按所需章节分批加载；独立的小结果可以批量读取，长文件或多份报告分别读取，避免汇总输出被截断。发生截断时只补读缺失范围，再依赖其结论；一次成功的工具调用不代表正文完整可见。检索结果已覆盖所需源码时直接使用。同一任务内已加载且未变化的规则章节不再重读。
-
-Main 接收子 Agent 交付时，先读子 Agent 最终回复与报告顶部状态块，再按待核对的 Finding / 检查项用 grep 定位相关章节读取；只有报告与事实矛盾或验收需要全文时才整篇读取。已读过的旧版报告不重读，只读新增部分。
-
-工具发现使用当前 Runtime 的接口：先限定服务与操作名，一次获取当前阶段需要的 Schema 并复用；Pi MCP 发现使用 `tool_search`，`tools.<name>` 仅调用已声明的工具，未声明的方法先用 `describeTool` 核对。Codemode 的 `store` 只保存小摘要；Session 核验按可疑事件定向读取，Usage 在本地一次解析汇总，只输出计数、错误与相关片段，不把整份 Session 放入上下文或 store。
-
-加载表与委派 References 使用相对于 `AGENT_WORKBENCH_ROOT` 的路径；Core 正文中的短文件名相对于所在目录。Runtime 入口先解析该环境变量再读取文件；变量缺失或路径无效时报告配置问题并请求修复。
-
-## 8. 产物与状态
-
-Task Root、`subtasks/`、写入归属、本地保存方式及各产物要求见 `core/task-contract.md` §5–6；模板位于 `core/templates/`。产物只在阶段需要时创建。子 Agent 完成状态见 `core/task-contract.md` §7。
-
-## 9. 完成原则
-
-Main 完成 `core/acceptance.md` 定义的验收后，任务才能报告 `PASS`；需要 Developer Review 的任务还需开发者明确确认。最终报告字段见 `core/acceptance.md` §8。
+接收子 Agent 交付时，先读报告顶部状态块与 `git diff --stat`，按需定点读取关键源码和截图；大体积日志与 Session `.jsonl` 用脚本或 `grep` 提取摘要。

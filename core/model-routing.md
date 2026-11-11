@@ -1,119 +1,44 @@
 # 模型路由与运行时核验
 
-本文件定义 Main 与子 Agent 的模型偏好、Thinking、运行时核验和升级规则。表中名称是目标偏好；实际 Provider、Model ID、版本、参数映射和能力以当前运行配置为准。
+本文件定义 Main 与子 Agent 的模型偏好、Thinking、运行时核验、跨家族约束和成本闸门。表中名称是目标偏好；实际 Provider、Model ID 和可用能力以当前运行环境为准。
 
 ## 1. Main Runtime 与模型
 
-Main Runtime 与 Main 模型分别选择：
-
 | Main Runtime | 模型偏好 | 默认 Thinking | 说明 |
-|---|---|---|---|
-| Claude Code | Claude Opus 5.5 | `medium`；按 Runtime 支持调整 | 当前 Claude Code Session 担任 Main / Planner |
-| Pi | Claude Opus 5.5 或 GPT-6.1 Sol | `medium` | 当前 Pi Session 担任 Main / Planner |
+|---|---|---|
+| Claude Code | Claude Opus 5.5 | `medium` | 当前 Claude Code Session 担任 Main / Planner |
+| Pi | Claude Opus 5.5 或 GPT-6.1 Sol | `medium` | 当前 Pi Session 担任 Main / Planner；复杂规划可用 `high` |
 
-- 用户按任务或习惯选择 Runtime；Main 模型由当前 Session 或 Runtime 配置决定。
-- 复杂规划使用 `high`；重大架构或高风险决策使用当前模型支持的更高 Thinking。
-- Claude Code 与 Pi 的 Thinking 名称和控制方式由各自 Runtime Adapter 映射，参数只传给所属 Runtime。
+Main 负责决策与编排，通过将深入代码调查和实现委派给子 Agent 来控制自身上下文增长，避免高单价主模型产生高额重算费用。
 
 ## 2. Pi 子 Agent 模型偏好
 
 | Agent | 模型偏好 | 默认 Thinking | 使用条件 |
-|---|---|---|---|
-| Repo Researcher | DeepSeek V4.1 Flash | `max` | 项目内部跨文件检索、配置或调用链分析 |
-| Web Researcher | DeepSeek V4.1 Flash | `max` | 外部技术资料、版本或规范检索 |
-| Implementer | DeepSeek V4.1 Flash | `max` | L2 代码变更，含 Visual Implementation |
-| Primary Reviewer | GPT-6 Luna | `medium` | 所有 L2 代码变更；复杂 Diff 可用 `high` |
-| Secondary Reviewer | GLM-5.3 Flash | `max` | 满足 §5 条件时 |
-| Reviewer Escalation | Claude Sonnet 5.5 | `medium` | 满足 §5 条件时；受跨家族约束 |
-| Tester | DeepSeek V4.1 Flash | `max` | 高风险、跨模块、关键契约，或独立验证能增加覆盖时 |
-| Expert | Claude Opus 5.5 | `medium` | 重大架构决策或常规 Agent 无法解决的问题 |
+|---|---|---|
+| Repo / Web Researcher | DeepSeek V4.1 Flash | `max` | 存在阻断方案的跨模块未知项或外部技术检索时 |
+| Implementer | DeepSeek V4.1 Flash | `max` | L2 代码实现；视觉任务需选择支持图片理解的模型 |
+| Primary Reviewer | GPT-6 Luna | `medium`（复杂 Diff 用 `high`） | 所有 L2 代码变更；必须与 Implementer 跨模型家族 |
+| Tester | DeepSeek V4.1 Flash | `max` | 仅当需补充 Implementer 未覆盖的独立集成/E2E 验证时 |
+| Expert | Claude Opus 5.5 | `medium` | 重大架构权衡或常规模型连续失败的疑难问题 |
 
-表中是角色偏好；Herdr / Pi 按当前 Provider 配置解析实际模型、Alias 和 Endpoint。
+## 3. 委派与运行时核验
 
-## 3. 委派规则
+- 启动新子 Agent 时显式传入目标 `--provider`、`--model` 与 Thinking 参数，不依赖全局隐式默认值。
+- 只在目标模型不确定或需校验视觉能力（`images`）与单价（`cost`）时，运行一次 `pi --list-models [keyword]` 查询。
+- Pi 子 Agent 在最终报告顶部如实记录自身环境变量 `PI_PROVIDER`、`PI_MODEL`、`PI_REASONING_LEVEL`（只读这几个变量，不打印凭据和全量环境）。定位子 Agent Session 路径优先读取 Herdr `agent get <name>` 返回的 `agent_session.value`，不用通配符盲猜文件名。
+- 目标模型或 Thinking 不可用时，Main 选择已知合规 Fallback 并在 `overview.md` 记录；无法满足跨家族 Review 等硬约束时暂停委派并向用户说明。
 
-- 每次启动新 Agent 都显式传入模型偏好和 Thinking，避免继承全局 `defaultThinkingLevel` 或旧 Session 的设置。
-- 使用当前 Herdr Agent Automation 接口启动 Pi Agent，命令、参数和等待方式以已安装版本的帮助或 Schema 为准。
-- 只传实际 Provider / Model 支持的参数；Prompt 中声明的模型和 Thinking 需要核验才算生效。
-- 无法动态覆盖时，使用已配置且能确认生效的 Agent Profile。
-- 目标 Thinking 不受支持时，读取实际支持的值，由 Main 决定 Fallback 或暂停，并记录最终生效值。
-- 凭据、Token 和认证文件留在 Runtime 配置中，Contract 只引用模型名称。
-
-## 4. 运行时核验
-
-常规任务在 Contract 启动核验中确认实际配置（`core/task-contract.md` §1）；只在目标模型不可用、映射不明或能力未知时查询模型目录。按当前 Runtime 的接口核验：
-
-- 模型目录：`get_available_models` 或 `pi --list-models [keyword]`，读取 `provider`、`id`、`input`、`reasoning`、`cost`。
-- Pi TUI 子 Agent：在自身 Shell 工具中读取 `PI_PROVIDER`、`PI_MODEL`、`PI_REASONING_LEVEL` 并写入报告，这些值反映该 Session 的有效配置。Main 在 Constraints 中授权这项只读查询。Main 的环境、启动参数和 Prompt 声明不能代替子 Agent 的实际值。
-- RPC Session：用 `get_state` 核对 `model` 与 `thinkingLevel`，用 `get_available_thinking_levels` 查询支持值，用 `get_session_stats` 记录 Usage / Cost。这些是 RPC 专属命令，仅在 RPC Session 中使用。
-- 定位 Session：子 Agent 提供 `PI_SESSION_FILE`，或 Main 读取 Herdr 结构化 Agent 的 `agent_session.value`（以当前 Schema 为准）；只在异常时定向读取相关事件。
-
-实际值与偏好不符时，Main 按 §3 选择已知 Fallback 或暂停，并记录理由。元数据渠道不可用时标为 `NOT VERIFIED` 并说明限制；路由的必要条件（如 Reviewer 跨家族）无法核实时暂停该委派。非必要的 Usage / Cost 无法获取时写 `N/A`。只读取所需的模型变量，凭据和完整环境变量保持隐藏（`core/permissions.md` §4）。
-
-## 5. 升级规则
+## 4. 跨家族约束与升级成本闸门
 
 ### Reviewer 跨家族约束
 
-所有 Reviewer（Primary、Secondary、Escalation）的实际模型家族都与 Implementer 的实际模型家族不同。Implementer 升级模型后，Main 重新检查这一约束：
+Primary Reviewer（及极少数高危场景按需增派的交叉复核 Reviewer）的实际模型家族**必须与 Implementer 不同**：
 
-1. 优先使用表 §2 的默认模型。
-2. 默认模型与 Implementer 同家族时，按 GLM-5.3 Flash → GPT-6 Luna 的顺序，选择尚未参与本任务 Review 的跨家族模型。
-3. 没有可用的跨家族模型，或所有跨家族 Reviewer 都已参与当前争议时，由 Main 依据原始需求、当前源码、Diff、测试和已有 Review 证据直接裁决并记录理由。仍无法形成有证据的结论时，P0/P1 保持 `BLOCKED`。
+1. 默认使用 §2 的 `GPT-6 Luna`（当 Implementer 为 DeepSeek / GLM / Claude 时）。
+2. 若默认模型不可用、被用户禁用或与 Implementer 同家族，按 `GLM-5.3 Flash → GPT-6 Luna → Claude Sonnet 5.5` 顺序选择可用且未禁用的跨家族模型。
+3. 无可用跨家族模型时，由 Main 依据源码、Diff 与测试日志直接完成深度审查并向用户说明。
 
-### Implementer
+### 升级与成本闸门
 
-同一问题连续两次实现失败，或关键测试失败且当前模型无法定位原因时，Main 可升级到已配置的 Claude Sonnet 5.5 / Claude Opus 5.5，并复用已有需求、方案、Diff、测试和失败证据。首轮 Review 发现 P1 是正常修复输入，由原模型修复；任务涉及并发、事务或数据一致性本身不构成升级理由。升级前先通过下方「成本闸门」。
-
-### 成本闸门
-
-启动或切换到单价明显高于该角色 §2 默认模型的模型（以 `pi --list-models` 的 `cost` 为准）前，Main 先在自己的 Session 中向用户确认：升级原因、目标模型、预计轮次与费用量级。用户回答记入 `overview.md` 顶部状态；用户禁用某模型或设定费用上限时，同样写入顶部状态并传入后续每份 Contract，升级、Fallback 和 Reviewer 选择都受其约束。
-
-等待子 Agent 时把用户上限传给 `scripts/wait-agent.sh`（`runtimes/README.md`），每次返回时查看各 Session 已花费用；接近用户上限，或单个子 Agent 的费用已超过其余角色合计时，暂停并向用户简报。
-
-### Primary Review
-
-跨模块、复杂业务逻辑或高风险 Diff 可提升到 `high`。Review 要求见 `core/acceptance.md` §3。
-
-### Secondary Review
-
-Primary Review 交付后，满足以下任一条件时启动：
-
-- 涉及安全/权限、数据迁移/一致性或核心接口契约，且该处具体风险在 Primary Review 和现有测试中都没有覆盖。
-- 测试覆盖有明确缺口，且对应具体的高影响风险。
-- Primary Reviewer 提出需要独立交叉验证的 P0/P1。
-
-Secondary Reviewer 仍盲审，不接收 Primary 结论；Contract 只列 Main 记录的待覆盖风险。
-
-启动前，Main 在 `overview.md` 记录具体风险、现有覆盖的限制和本次新增的检查目标。理由需要指向具体风险；文件数量多或跨模块本身不构成理由。
-
-### Reviewer Escalation
-
-满足以下任一条件时启动：
-
-- Primary 与 Secondary Reviewer 对 P0/P1 有实质分歧。
-- 关键 P0/P1 的根因或影响仍无法确认。
-- 安全/权限/数据一致性等高影响问题经过前两轮仍无法形成有证据的结论。
-
-Secondary Reviewer 不可用时，Main 可按风险直接启动 Escalation 并记录原因。触发对象限于 P0/P1 及有具体证据的高影响问题。
-
-### Researcher / Expert
-
-官方资料冲突、涉及多个技术栈/版本，或结论影响重大架构决策时，Main 可提高 Thinking 或委派 Expert 独立分析。
-
-### 升级上限
-
-- 每个任务最多一次 Primary Review、一次符合条件的 Secondary Review 和一次定向 Escalation。
-- 其他角色针对同一问题最多升级一次；升级后仍无法解决时暂停并报告。
-- 每次升级记录原因、实际 Provider / Model ID、实际 Thinking 和结果；升级模型不可用时使用已配置的 Fallback 并如实记录。
-
-## 6. 必需模型元数据
-
-每份 Handoff / Review / Test 报告在可获取时记录：
-
-- Provider
-- 实际 Model ID
-- 实际 Thinking
-- 模型或工具的能力限制
-- Usage / Cost（可读取时）
-
-模型偏好、实际模型和实际 Thinking 分开记录。
+- **升级条件**：首轮 Review 检出 P1 属于正常迭代，由原 Implementer 模型修复，不升级模型；仅当同一问题连续两轮修复失败或无法定位根因时，才考虑升级到高阶模型（如 `Claude Sonnet 5.5` / `Claude Opus 5.5`）。
+- **成本闸门**：启用或切换到单价显著高于 §2 默认模型的模型前，Main 必须先向用户确认原因、目标模型与预计成本。用户指定的模型禁用列表或费用上限写入 `overview.md` 顶部状态，并通过 `scripts/wait-agent.sh` 的 `max-cost-usd` 参数实时监控；接近上限或单个子 Agent 成本异常偏高时立即暂停简报。

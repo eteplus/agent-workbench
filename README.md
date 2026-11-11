@@ -2,45 +2,43 @@
 
 面向个人开发环境的多 Runtime Agent 工作流仓库。支持 **Claude Code 或 Pi 担任 Main**，通过 **Herdr → Pi Agent** 委派需要独立上下文的子任务。
 
-> **项目状态**：本工作流仍在持续完善，来自维护者个人的 Agent 开发实践，主要适配当前维护者的工具和工作习惯。内容仅供参考与学习，请结合自身项目和风险偏好调整。
+> **项目状态**：本工作流仍在持续完善，来自维护者个人的 Agent 开发实践，主要适配当前维护者的工具链和工作习惯。内容仅供参考与学习，请结合自身项目和风险偏好按需调整。
 
 ## 架构
 
 ```text
 Claude Code ─┐
-             ├── Main /workflow ── Core Rules
+             ├── Main /workflow (Intake / Clarify / Plan / Fast-Path)
 Pi ──────────┘         │
                        ▼
-                 Herdr Automation
+                 Herdr Automation (Pane 复用 + 自动回收)
                        │
-              ┌────────┼────────┐
-              ▼        ▼        ▼
-          Research  Implement  Review / Test
-              └────────┼────────┘
+          ┌────────────┼────────────┐
+          ▼            ▼            ▼
+      Research     Implement   Review / Test
+      (按需调研)  (TDD + 视觉)  (跨模型家族审查)
+          └────────────┼────────────┘
                        ▼
-             Main Gate / Acceptance
+          Main Gate / Developer Review / Cleanup
 ```
 
-- **Core**：任务分级、模型路由、权限、Task Contract、Review、Gate 与验收的唯一规则来源；术语表见 [`core/README.md`](core/README.md#术语)。
-- **Runtimes**：Claude Code Skill 与 Pi Prompt Template，共用 `/workflow` 启动 / 续接入口；调用语法只在 Adapter 定义。
-- **Herdr → Pi**：Main 管理 Pane、启动 Pi 子 Agent、传递任务并收集结果。
-- **Skills**：维护个人 Skill，并通过 Skills CLI 同步到 Agent Runtime。
+- **Core**：任务分级、收尾快速通道、模型路由、权限、自包含 Contract、Git 原生证据、跨家族 Review 与验收的唯一规则来源；术语表见 [`core/README.md`](core/README.md#术语)。
+- **Runtimes**：Claude Code Skill 与 Pi Prompt Template，共用 `/workflow` 启动 / 续接入口。
+- **Herdr → Pi**：Main 管理并复用子 Agent Pane，等待进展并在任务完成时一键回收。
+- **Skills**：维护个人专项 Skill（如 `ui-impl`），并通过 Skills CLI 同步到 Agent Runtime。
 
 ## 环境与依赖
 
 | 类别 | 依赖 | 必要性 / 用途 |
 |---|---|---|
 | Main Runtime | Claude Code **或** Pi | 二选一，承担 Main / Planner |
-| Subagent Runtime | Pi Coding Agent | 必需；执行 L2 子任务 |
-| Orchestration | Herdr | 必需；管理 Pane、启动和控制 Pi Agent |
-| Model Access | Main 与 Pi 可用的模型 / Provider 凭据 | 必需；具体模型偏好见 `core/model-routing.md` |
-| Skill Manager | Node.js / pnpm / `pnpx skills` | 安装和同步 Skills 时需要；具体安装方式见 `skills/README.md` |
-| Engineering Skills | `mattpocock/skills` 指定 Skills | 按 Runtime 分流：Pi 默认安装 TDD / 设计辅助；Claude Code Main 可由用户显式调用澄清 / 复盘 Skills；Pi Main 默认使用 Core 内置流程，可选专项 Skill 按 `skills/README.md` 安装与核验；`implement` / `code-review` 默认不安装，仅满足前置条件并明确选择试用时才按需安装到 Pi；用户显式调用型 Skill 不会被模型自动触发 |
-| Issue Tracker | 项目 Tracker 配置 | 上游 `code-review` 需要；`implement` 传入 Ticket 引用或使用其内部 `code-review` 时需要。未配置时使用 Core 实现与 Review 流程 |
-| Visual Tooling | `ui-impl`、agent-browser、图片理解能力 | 仅视觉实现任务需要 |
-| Code Retrieval | `@colbymchenry/codegraph` | 可选；不可用时使用 `rg` / `fd` / Read |
-
-建议安装 Herdr Pi Integration，以提供 Pi Session 身份、状态上报和 Session 恢复支持。基础 Pane / Agent 调度由 Herdr 自动化能力提供。第三方 Skills 的调用约定、依赖边界和 Issue Tracker 前置条件见 [`skills/README.md`](skills/README.md)。Runtime 调度及 Pi 嵌套依赖边界见 [`runtimes/README.md`](runtimes/README.md)。
+| Subagent Runtime | Pi Coding Agent | 必需；执行 L2 子任务（按需 Research、Implement、独立 Review / Test） |
+| Orchestration | Herdr | 必需；管理 Pane、复用和控制 Pi 子 Agent |
+| Model Access | Main 与 Pi 可用的模型凭据 | 必需；跨家族路由见 `core/model-routing.md` |
+| Skill Manager | Node.js / pnpm / `pnpx skills` | 安装和同步 Skills 时需要；见 `skills/README.md` |
+| Engineering Skills | `mattpocock/skills` 指定 Skills | 可选辅助：Pi 可装 `tdd` / `codebase-design`，Main 可按需使用 `grilling` / `domain-modeling` / `retro` 等；详见 `skills/README.md` |
+| Visual Tooling | `ui-impl`、真实浏览器工具、视觉模型 | 仅 `Visual Implementation` 任务需要 |
+| Code Retrieval | `@colbymchenry/codegraph` | 可选；未安装时直接使用 `rg` / `fd` / Read |
 
 ## 快速开始
 
@@ -52,87 +50,62 @@ Pi ──────────┘         │
 export AGENT_WORKBENCH_ROOT="$HOME/Workspace/agent-workbench"
 ```
 
-重新打开终端，或执行 `source ~/.zshrc`。确保 Main Runtime 和 Herdr 启动的 Pi 子 Agent 进程都能读取该变量。
+重新打开终端或执行 `source ~/.zshrc`，确保 Main Runtime 与 Herdr 启动的进程均可读取该变量。
 
-### 2. 安装 Runtime 入口
+### 2. 安装入口与本仓库 Skill
 
 ```bash
 cd "$AGENT_WORKBENCH_ROOT"
 ./scripts/install-runtime-links.sh
-```
 
-脚本为 Pi 安装全局 `/workflow` Prompt Template Symlink，并输出 Claude Code Skill 安装方式。选择 Claude Code 作为 Main 时执行：
-
-```bash
+# Claude Code 作为 Main 时安装入口 Skill（选择 Symlink）
 pnpx skills add "$AGENT_WORKBENCH_ROOT/runtimes/claude-code" \
   --skill workflow --agent claude-code --global
-```
 
-安装时选择 **Symlink**。Pi 活动 Session 执行 `/reload`。两个 Runtime 均通过 `/workflow <任务目标>` 启动。
-
-### 3. 安装本仓库 Skill
-
-```bash
+# 安装视觉实现 Skill（选择 Symlink）
 pnpx skills add "$AGENT_WORKBENCH_ROOT/skills" \
   --skill ui-impl --agent claude-code --agent pi --global
 ```
 
-选择 **Symlink**。第三方 Skills 按角色和 Runtime 分流：Pi 子 Agent 使用工程实现辅助 Skills，Main Runtime 按需使用需求澄清 / 复盘 Skills；上游 `implement` / `code-review` 仅在 Issue Tracker 前置条件满足时条件安装。安装命令见 [`skills/README.md`](skills/README.md)。
+Pi 活动 Session 执行 `/reload`。第三方辅助 Skills 的按需安装说明见 [`skills/README.md`](skills/README.md)。
 
-### 4. 开始任务
+### 3. 开始任务
 
-- Claude Code：`/workflow <任务目标>`
-- Pi：`/workflow <任务目标>`
+- Claude Code 或 Pi：`/workflow <任务目标>`
+- 后续直接说「继续」或调整目标。L0/L1 任务及 Gate / Developer Review 阶段无生产逻辑风险的收尾微调由 Main 原地快速完成；L2 任务通过自包含 Contract 委派子 Agent，并复用同角色 Pane。
 
-Main 按风险选择最小必要流程。后续直接说「继续」或调整目标。同一任务重复 `/workflow` 或恢复 Session 仍沿用 Task ID、阶段和决策，不重新启动。访谈和批准留在 Main，L2 代码实现及独立 Research / Review / Test 通过 Herdr → Pi 执行；Research → Implement 使用新的 Pi Session。回复与生成产物跟随用户实际目标的语言，续接沿用（规则见 `core/workflow.md` §2）。Skill 是按需辅助，不另起工作流。
+## 任务产物与记忆
 
-## 任务审阅
+L2 任务使用单一本地目录 `.agents/workflow/tasks/<task-id>/`（默认不纳入 Git 提交，未忽略时建议加入项目本地 `.git/info/exclude`）：
 
-每个 Workflow 任务只有一个本地产物根目录 `.agents/workflow/tasks/<task-id>/`；同一任务续接沿用，独立任务不共用。细分执行放在该目录的 `subtasks/<id>/`，不另建顶层 task 目录；按需创建报告，每个文件一个写入负责人。
+- `overview.md`：唯一状态入口与产物导航。
+- `decisions.md`（有实质决策时）、`plan.md`（多文件或契约变化时）。
+- `subtasks/implement/handoff.md`、`subtasks/review/review.md`（按需含 `subtasks/research/research.md`、`subtasks/test/test-report.md` 及视觉任务的 `visual-report.md` + `screenshots/`）。
+- 干净工作区直接以 `git diff <Base Commit>` 与先改后测日志作为事实源，不生成多轮重复快照目录。
 
-所有 L2 任务以 `overview.md` 为导航，查看目标、状态、关键文件、决策索引、验证结论与子任务入口，再按需查看：
+跨任务项目记忆保存在目标项目本地 `.agents/workflow/memory/project-memory.md`（规则见 [`core/project-memory.md`](core/project-memory.md)），采用 Workflow 时由 Main 默认维护，常规任务默认 `SKIP`，仅沉淀代码与正式文档未覆盖的隐性约束（权限见 [`core/permissions.md`](core/permissions.md) §1）。对外 Issue 交付遵循 [`core/permissions.md`](core/permissions.md) §3 的脱敏与回读要求。
 
-- `decisions.md`：实质性选择、来源、责任人、理由、取舍和确认状态。
-- `plan.md`：实施范围、步骤、契约、风险和回滚方案（按条件生成）。
-- `handoff.md`：Implementation Walkthrough、调用链、状态/数据流、扩展和排障入口。
-- `review*.md`、`test-report.md`：独立 Review、Finding、测试结果和覆盖限制。
-- `workspace-baseline/`（仅存在授权重叠路径时）：用于区分任务前已有修改与本次实现。
-- Git Diff 与源码：核对实际变更和证据。
+## 文档与脚本导航
 
-任务报告、派发上下文和检查输出仅作本地 Agent 上下文，默认不纳入提交。若项目没有忽略该目录，建议在项目本地 `.git/info/exclude` 添加 `.agents/workflow/tasks/`；不必修改团队共享 `.gitignore`，提交前仍检查暂存范围。已经跟踪的文件不受 ignore 规则影响，处理它们需单独授权。
-
-长期知识从任务结论中提炼：架构取舍写 ADR，使用、接口和排障知识更新对应文档；仅在当前授权内执行，不复制全部过程报告。历史产物不自动清理。
-
-跨任务的项目记忆由 Workflow 管理，保存在目标项目本地 `.agents/workflow/memory/project-memory.md`（规则见 [`core/project-memory.md`](core/project-memory.md)）。它不属于「任务审阅」档案：任务过程留在 Task Root，记忆只保留预算内的当前知识摘要与指针。记忆、备份、暂存和候选默认不提交、不外发；首次启用时在该仓库 Git 元数据目录的 `info/exclude` 排除 `.agents/workflow/memory/`，已跟踪文件不受忽略影响。采用 Workflow 时由 Main 默认维护，标准维护不再逐次申请批准；开发者可手动编辑，项目或任务明确禁止记忆、完全只读或限制路径时收窄，扩容、移除保护项与重要冲突仍交 Main（[`core/permissions.md`](core/permissions.md) §1）。
-
-对外 Issue 交付使用可共享正文与上传附件，而不是本地任务目录链接；规则见 [`core/permissions.md`](core/permissions.md) 的「可共享证据」。
-
-同一轮明确列出的同类问题可批量确认，但设计确认、Developer Review 与外部写入授权不混同。高影响任务按条件进入 Developer Review。Developer Review 见 [`core/references/developer-review.md`](core/references/developer-review.md)，Gate 与最终验收见 [`core/acceptance.md`](core/acceptance.md)。
-
-## 文档导航
-
-| 文档 | 内容 |
+| 路径 | 职责 |
 |---|---|
-| [`core/README.md`](core/README.md) | Core 文件职责、术语表和文档语言约定 |
-| [`core/workflow.md`](core/workflow.md) | Main 职责、任务启动与续接、阶段流程和上下文加载 |
-| [`core/task-classification.md`](core/task-classification.md) | L0/L1/L2、任务类型和 Plan 条件 |
-| [`core/model-routing.md`](core/model-routing.md) | Agent 模型偏好、Thinking 和升级 |
-| [`core/permissions.md`](core/permissions.md) | 角色权限、决策归属、工作区和外部副作用 |
-| [`core/task-contract.md`](core/task-contract.md) | Task Contract、Workspace Baseline 和任务产物 |
-| [`core/acceptance.md`](core/acceptance.md) | Test、Review、Gate、验收、最终报告和预算 |
-| [`core/project-memory.md`](core/project-memory.md) | 项目记忆的字段、预算、期限与提交规则 |
-| [`core/templates/`](core/templates/) | Overview、Decisions、Handoff 模板 |
-| [`core/references/`](core/references/) | 代码检索、盲审与裁决、Developer Review、异常恢复 |
-| [`runtimes/README.md`](runtimes/README.md) | Runtime 要求、Herdr 调度和 Skill 调用映射 |
+| [`core/README.md`](core/README.md) | Core 文件职责、术语表与文档语言约定 |
+| [`core/workflow.md`](core/workflow.md) | Main 职责、启动续接、阶段流程与 Session 复用 |
+| [`core/task-classification.md`](core/task-classification.md) | L0/L1/L2、收尾快速通道与方案条件 |
+| [`core/model-routing.md`](core/model-routing.md) | 模型偏好、跨家族 Review 约束与成本闸门 |
+| [`core/permissions.md`](core/permissions.md) | 权限矩阵、目录级工作区边界、记忆授权与外部副作用 |
+| [`core/task-contract.md`](core/task-contract.md) | 自包含 Contract、内联角色约束与产物结构 |
+| [`core/acceptance.md`](core/acceptance.md) | 测试、状态覆盖、Git 原生证据、跨家族 Review、增量截图、Gate 与最终报告 |
+| [`core/project-memory.md`](core/project-memory.md) | 项目记忆的边界、预算与维护规则 |
+| [`runtimes/README.md`](runtimes/README.md) | Runtime 入口、Herdr 调度、Pane 复用与清理协议 |
 | [`skills/README.md`](skills/README.md) | 个人 Skills、第三方依赖、安装和同步 |
+| [`scripts/run-check.sh`](scripts/run-check.sh) | 统一执行检查命令、保存完整日志并保留真实退出码（`core/acceptance.md` §2） |
+| [`scripts/wait-agent.sh`](scripts/wait-agent.sh) | 有界分段等待子 Agent，探测停滞与费用上限，避免工具硬超时 |
+| [`scripts/cleanup-agents.sh`](scripts/cleanup-agents.sh) | 任务完成或终止时一键关闭子 Agent 与 Pane（自动保护 Main Pane） |
+| [`scripts/session-progress.mjs`](scripts/session-progress.mjs) | 探测 Pi Session 活跃度、上下文 Token 与模型花费 |
+| [`scripts/evidence-snapshot.sh`](scripts/evidence-snapshot.sh) | 仅用于重叠脏工作区基线备份及未跟踪文件行级比对 |
 
-## 维护原则
-
-Core 规则只在对应权威文件中维护；Runtime Adapter 负责加载规则和映射调用方式；Skill 只承载专项能力。修改规则时先更新唯一权威文件，再检查入口、模板和引用。文档写作遵循 [`core/README.md`](core/README.md) 的术语表与语言约定。
-
-Agent 的检查统一调用 [`scripts/run-check.sh`](scripts/run-check.sh)，准确命令和日志路径由 Contract 提供；用法见 [`core/acceptance.md`](core/acceptance.md) §2。实现版本证据用 [`scripts/evidence-snapshot.sh`](scripts/evidence-snapshot.sh) 采集与比较；Main 等待子 Agent 时用 [`scripts/wait-agent.sh`](scripts/wait-agent.sh) 在一次调用内等待并探测停滞与费用，单次探测用 [`scripts/session-progress.mjs`](scripts/session-progress.mjs)（[`runtimes/README.md`](runtimes/README.md)）。
-
-使用 Node.js 22+ 和 Bash 运行 `node --test scripts/check-workflow.mjs` 检查文件/章节指针、入口与 Contract 结构、项目记忆规则的结构/字段/预算/指针约束，以及共享检查脚本的退出码/完整日志；不绑定自然语言原句。行为验证按 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md) 执行，静态通过不代表语义或 Runtime 已验证。
+运行 `node --test scripts/check-workflow.mjs` 验证全部文档链接、章节指针、Contract/模板结构及脚本自动化回归；行为场景参考 [`tests/workflow-scenarios.md`](tests/workflow-scenarios.md)。
 
 ## 许可证
 
