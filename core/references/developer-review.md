@@ -12,7 +12,7 @@ Main 向开发者呈现紧凑的审阅摘要，引导从总览按需下钻查看
 
 ## 2. 批准与反馈
 
-- `REQUIRED` 任务在获得开发者明确批准前，Verdict 必须停在 `NEEDS DEVELOPER REVIEW`（保留子 Agent Pane，严禁提前调 `cleanup-agents.sh` 或直接报 `PASS`）。测试全绿或 AI Reviewer 通过不代替开发者批准。
+- `REQUIRED` 任务在获得开发者明确批准前，Verdict 必须停在 `NEEDS DEVELOPER REVIEW`（保留子 Agent Pane，严禁提前调 `cleanup-agents.sh` 或直接报 `PASS`；`cleanup-agents.sh --task-root` 会检查 `overview.md` 的 `APPROVED`）。测试全绿或 AI Reviewer 通过不代替开发者批准。
 - **无生产逻辑风险微调**：符合 `core/acceptance.md` §5 **收尾快速通道**条件时，直接按该通道原地修改、验证并汇报确认。
 - **实质变更请求**：触及生产逻辑、组件结构或接口契约时，按 `core/acceptance.md` §5 的定向修复流程复用 Implementer 与 Reviewer 增量修改并复核，再更新审阅摘要请开发者确认。
 

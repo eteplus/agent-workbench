@@ -31,6 +31,7 @@ L2 代码实现由 Herdr → Pi Implementer 按自包含 Contract 完成：
 bash "$AGENT_WORKBENCH_ROOT/scripts/run-check.sh" /absolute/task/subtasks/implement/evidence/verify.log pnpm verify
 ```
 
+- 命令需带环境变量时写成 `env VAR=x <命令>`，否则会被当作命令名。
 - 将其作为单次工具调用的最后一条命令（后面不接管道或附加命令），使工具退出码等于真实 `check_exit`。
 - 预期失败测试（`red`）保留非零退出码并在报告中标明 `EXPECTED FAIL`。后台长任务必须在原上下文 `wait` 拿到最终退出码后才算验证完成，仅拿到启动 PID 标为 `NOT VERIFIED`。
 
@@ -48,13 +49,13 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/evidence-snapshot.sh" --verify /absolute/tas
 
 所有 L2 代码变更默认执行 **1 轮跨模型家族 Primary Review**（Reviewer 模型家族与 Implementer 不同，见 `core/model-routing.md` §4）：
 
-- **输入与方式**：Reviewer 以工作区当前源码与 `Base Commit` 的完整 `git diff`、本次新增未跟踪文件的全文 `read`、原始需求与已确认决策，以及 Implementer 的测试日志为主进行审查（仅在跨文件调用方不明时定点补查 `codegraph`）；保持只读，输出 `review.md`。
+- **输入与方式**：Reviewer 以工作区当前源码与 `Base Commit` 的完整 `git diff`、本次新增未跟踪文件的全文 `read`、原始需求与已确认决策，以及 Implementer 的测试日志为主进行审查（仅在跨文件调用方不明时定点补查 `codegraph`）；保持只读，输出 `review.md`。Reviewer 不写代码树指纹；Review 完成且 Implementer 已停止后，由 Main 在仓库根运行 `bash "$AGENT_WORKBENCH_ROOT/scripts/gate.sh" tree <Base Commit>`，写入 `overview.md` 的 `Reviewed Tree: <hash>`（Review 覆盖的代码树指纹，按文件内容计算，提交前后不变）。
 - **审查重点**：需求与父 Spec 一致性（含配套 ADR / `GLOSSARY.md` / 文档同步要求）、状态生命周期与异常边界、数据/接口契约安全，以及**新增测试输入的真实合法性与关键断言覆盖**。
 - **Finding 分级**（格式：`ID | Severity | File:Line | Issue | Evidence | Suggested Fix`）：
   - **P0**：核心功能失效、崩溃，或严重的数据损坏、安全、权限、契约破坏。
   - **P1**：明确行为缺陷、需求遗漏，或关键测试无效以致掩盖实质风险。
-  - **P2**：局部代码风格、非阻断可访问性或防御增强建议——记录到最终报告 `Unresolved`，不进入自动修复循环（但若某条 P2 指向本任务 Spec 明确要求的文档/ADR 交付缺口，Main 须在本任务提交前补齐或请用户明确决定拆单，不得静默搁置后直接报 `PASS`）。
-- **争议裁决**：对 Reviewer 提出的争议项，Main 直接结合当前源码、Diff 与测试证据裁决；涉及业务语义未定义的交用户 Clarify。仅当涉及高危安全、资金或不可逆迁移且单轮 Review 仍无法确认风险时，Main 可按需增派一次另一跨家族模型做定向复核。
+  - **P2**：局部代码风格、非阻断可访问性或防御增强建议——记录到最终报告 `Unresolved`，不进入自动修复循环，Main 也不得在 Review 之后顺手修改生产代码（但若某条 P2 指向本任务 Spec 明确要求的文档/ADR 交付缺口，Main 须在本任务提交前补齐或请用户明确决定拆单，不得静默搁置后直接报 `PASS`）。
+- **争议裁决**：对 Reviewer 提出的争议项，Main 直接结合当前源码、Diff 与测试证据裁决，驳回 P0/P1 或对规格措辞的不同理解须在 `decisions.md` 记一行（Finding / 决定 / 证据）；涉及业务语义未定义的交用户 Clarify。仅当涉及高危安全、资金或不可逆迁移且单轮 Review 仍无法确认风险时，Main 可按需增派一次另一跨家族模型做定向复核。
 
 ## 4. 视觉验收与增量重截
 
@@ -70,12 +71,12 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/evidence-snapshot.sh" --verify /absolute/tas
 
 ### 收尾快速通道（唯一定义，每任务限用 1 次）
 
-当 Gate 唯一待处理项或 Developer Review 反馈**完全不涉及生产逻辑与契约变化**（仅限纯 UI 文案/标签调整、注释与文档/ADR/`GLOSSARY.md` 同步、报告事实笔误、无障碍语义属性补齐，或仅新增不改生产逻辑的补充单测断言）时，允许走 1 次快速通道：
+当 Gate 唯一待处理项或 Developer Review 反馈**只改文档、ADR、`GLOSSARY.md`、注释与用户可见文案字符串**（不含源码文件中的条件、表达式和属性；报告事实笔误同理）时，允许走 1 次快速通道：
 
 1. Main 直接用 `edit` / `write` 完成修改（或向仍在运行的原 Implementer Session 发简短指令修改）。
 2. 停止修改后通过 `run-check.sh` 运行受影响检查；视觉任务按 §4 仅重截受影响状态并读图确认。
-3. Main 核对完整 `git diff` 确认无顺带逻辑改动后放行，免派独立 Reviewer 复审。
-4. **逻辑与次数排除**：凡触及条件分支、状态流转、计算公式、权限校验或接口/数据契约的改动（不论行数多少），或已使用过 1 次快速通道后的再次修改，一律走下方定向修复与复审流程。
+3. Main 核对完整 `git diff` 确认无顺带逻辑改动后放行，免派独立 Reviewer 复审，并运行 `gate.sh tree <Base Commit>` 把结果写入 `overview.md` 的 `Fast Lane Tree:`。
+4. **逻辑与次数排除**：凡触及上述范围之外的生产代码、配置、Schema、迁移或测试文件（含条件分支、状态流转、计算公式、权限校验、接口/数据契约，不论行数多少），或已使用过 1 次快速通道后的再次修改，一律走下方定向修复与复审流程：Main 可自己小改，但必须写 `handoff-fix-<n>.md`，并由原 Reviewer 复核增量、产出 `review-fix-<n>.md`，Main 随后更新 `overview.md` 的 `Reviewed Tree:`。用户在 Review 之后追加或推翻设计（规格变更）同样适用，已有 Review 对变更部分作废。
 
 ### P0/P1 实质缺陷定向修复
 
@@ -84,12 +85,12 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/evidence-snapshot.sh" --verify /absolute/tas
 3. 复用原 Reviewer Session 仅对本轮增量改动做定向复核，确认原 P0/P1 已关闭且无新回归。
 4. 实质缺陷修复最多 **2 轮**；第 2 轮后仍存在未解决 P0/P1 时停止循环，标记 `BLOCKED` 并报告用户。
 
-**Gate 放行条件**：全部验证日志均晚于最后一次代码编辑，必需检查 `check_exit=0`，P0/P1 Finding 清零，Spec 要求的配套文档/ADR 已齐备（或经用户明确同意延后），且每条原始验收条件均已对应到通过的测试或已读核验的截图。
+**Gate 放行条件**：`overview.md` 的 `Reviewed Tree`（或 `Fast Lane Tree`）等于当前代码树，全部验证日志均晚于最后一次代码编辑，必需检查 `check_exit=0`，P0/P1 Finding 清零，Spec 要求的配套文档/ADR 已齐备（或经用户明确同意延后），且每条原始验收条件均已对应到通过的测试或已读核验的截图。
 
 ## 6. Developer Review 衔接、Main 验收与最终报告
 
-- **严禁跳过 `REQUIRED` 的 Developer Review**：Gate 放行后，凡 `Developer Review: REQUIRED` 的任务（如涉及 UI 行为、共享契约、数据库迁移或 ADR 修订），Main **必须先停在 `Verdict: NEEDS DEVELOPER REVIEW`**，保留子 Agent Pane 并按 `core/references/developer-review.md` 呈现审阅摘要等待开发者明确批准；**未获批准前严禁调用 `cleanup-agents.sh` 或直接报 `Verdict: PASS`**。
-- **最终验收与回收**：所有必需验收条件满足、Gate 放行且必要的 Developer Review 已获明确批准后，Main 同步更新 `overview.md` 最终状态，调用 `scripts/cleanup-agents.sh` 回收子 Agent 与 Pane，再输出最终报告（后续用户要求「完善/关闭 Issue」时，严格按项目 Tracker 规范一次完成勾选、评论、标签替换与关闭并做回读核验）：
+- **严禁跳过 `REQUIRED` 的 Developer Review**：Gate 放行后，凡 `Developer Review: REQUIRED` 的任务（如涉及 UI 行为、共享契约、数据库迁移或 ADR 修订），Main **必须先停在 `Verdict: NEEDS DEVELOPER REVIEW`**，保留子 Agent Pane 并按 `core/references/developer-review.md` 呈现审阅摘要等待开发者明确批准；**未获批准前严禁调用 `cleanup-agents.sh` 或直接报 `Verdict: PASS`**；用户的批准须记入 `overview.md` 的 `Developer Review: REQUIRED — APPROVED`。
+- **最终验收与回收**：所有必需验收条件满足、Gate 放行且必要的 Developer Review 已获明确批准后，Main 同步更新 `overview.md` 最终状态（Verdict 与 `Models & Usage` 成本汇总以 `overview.md` 为准，聊天里的最终报告可精简），用 `scripts/cleanup-agents.sh --task-root <Task Root> --prefix <prefix>` 回收子 Agent 与 Pane（脚本先运行 `gate.sh check`：状态未终态、缺 `Models & Usage`、`decisions.md` 仍有 `PROPOSED`、`REQUIRED` 未批准或 Review 已过期时退出码 `5` 且不回收），再输出最终报告（后续用户要求「完善/关闭 Issue」时，严格按项目 Tracker 规范一次完成勾选、评论、标签替换与关闭并做回读核验）：
 
 ```text
 Verdict: PASS / BLOCKED / NEEDS USER DECISION / NEEDS DEVELOPER REVIEW

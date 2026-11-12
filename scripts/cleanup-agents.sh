@@ -2,7 +2,14 @@
 # Cleanly stop Herdr Pi sub-agents and close their panes at task completion (runtimes/README.md).
 #   bash cleanup-agents.sh --prefix <task-prefix>
 #   bash cleanup-agents.sh <agent-name>...
+#   bash cleanup-agents.sh --task-root <task-root> --prefix <prefix>   (terminal PASS: runs gate.sh check first, exit 5 on failure)
 # Never closes Main's own HERDR_PANE_ID.
+
+if [[ ${1:-} == --task-root ]]; then
+  [[ -n ${2:-} ]] || { printf 'Usage: bash cleanup-agents.sh --task-root <task-root> --prefix <prefix>\n' >&2; exit 2; }
+  bash "$(dirname "$0")/gate.sh" check "$2" || exit 5
+  shift 2
+fi
 
 (( $# >= 1 )) || { printf 'Usage: bash cleanup-agents.sh --prefix <prefix> | <agent-name>...\n' >&2; exit 2; }
 herdr=${HERDR_BIN:-herdr}
@@ -21,7 +28,7 @@ raw=$("$herdr" agent list 2>&1) || { printf 'herdr_error\n%s\n' "$raw" >&2; exit
 targets=$(HERDR_RAW="$raw" MODE="$mode" PREFIX="$prefix" SELF_PANE="$self_pane" node - "$@" <<'EOF'
 const raw = process.env.HERDR_RAW || '';
 const mode = process.env.MODE;
-const prefix = process.env.PREFIX || '';
+const prefix = (process.env.PREFIX || '').replace(/[-_]$/, ''); // accept `impl-` as well as `impl`
 const selfPane = process.env.SELF_PANE || '';
 const names = new Set(process.argv.slice(2));
 

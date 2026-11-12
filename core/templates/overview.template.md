@@ -13,6 +13,8 @@
 - 当前阶段 / Verdict: <IN PROGRESS | PASS | BLOCKED | NEEDS USER DECISION | NEEDS DEVELOPER REVIEW>
 - Developer Review: <REQUIRED | RECOMMENDED | NOT REQUIRED> — <PENDING | APPROVED | CHANGES REQUESTED | N/A>
 - External Delivery: <N/A | COMPLETE | PARTIAL>
+- Reviewed Tree: <`gate.sh tree` 输出；由 Main 在每次 Review / 复审完成后写入>
+- Fast Lane Tree: <N/A | `gate.sh tree` 输出（仅走过快速通道时）>
 - Project Memory: <SKIP（默认） | UPDATED | PROPOSE> — <一句话说明>
 
 ## 目标与基线
@@ -41,3 +43,7 @@
 - Review 结论（P0/P1/P2 状态）:
 - 视觉验证（适用时）:
 - 未解决事项 / 残余风险:
+
+## Models & Usage
+- Main: <Runtime / Model / Thinking>（<tokens / cost>）
+- Subagents: <各角色实际 Model 与汇总 cost；未知注明原因>

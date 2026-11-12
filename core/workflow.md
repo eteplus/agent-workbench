@@ -74,6 +74,7 @@ Main 依据用户实际目标确定 `Output Language`（中文目标默认使用
 - **自包含 Contract**：每次委派使用 `core/task-contract.md` §2 的自包含 Contract，内联通用角色约束；子 Agent 按需参考指定报告模板或专项 Reference。
 - **持续等待不中断回合**：本任务有子 Agent 处于 `working` 且无需用户决策时，Main 调用 `scripts/wait-agent.sh` 有界等待；收到退出码 `1`（`still_working`）后**在同一回合内立即续调 `wait-agent.sh` 直至子 Agent 完成或异常**，不提前结束回合把等待交给用户。仅在遇到阻塞需用户决策或用户要求暂停时才结束当前回合。
 - **复用同角色 Session**：同阶段的补充指令、定向修复与定向复审，只要**未更换模型且原 Session 未逼近模型上下文窗口上限（如未达窗口 60% 或触发压缩告警）**，直接复用原 Agent Session 发送增量消息（充分利用 Prompt Cache）；已结束角色的空闲 Pane 可关闭旧进程后复用给后续角色。换模型或逼近窗口上限时，关闭旧 Agent 后启动新 Session。
+- **Main 上下文**：Review 通过后、进入收尾或后续长流程（长时间运行、批量外部写入）前，用 `scripts/session-progress.mjs` 查一次自身 Session；上下文超过模型窗口 60% 时，先把状态、决策和下一步写入 `overview.md`，再开新 Main Session 从 `overview.md` 续接。
 - **Pane 保留与终态回收**：`Developer Review` 待确认期间（`NEEDS DEVELOPER REVIEW`）必须保留已有子 Agent Pane 以便响应反馈；待用户明确批准达成最终 `PASS`（且无需继续追改）或任务明确取消/终止时，调用 `scripts/cleanup-agents.sh` 回收本任务全部子 Agent 与 Pane。
 
 ## 6. 按需加载

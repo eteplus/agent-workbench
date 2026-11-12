@@ -101,6 +101,7 @@ L2 任务使用单一本地目录 `.agents/workflow/tasks/<task-id>/`（默认�
 | [`skills/README.md`](skills/README.md) | 个人 Skills、第三方依赖、安装和同步 |
 | [`scripts/run-check.sh`](scripts/run-check.sh) | 统一执行检查命令、保存完整日志并保留真实退出码（`core/acceptance.md` §2） |
 | [`scripts/wait-agent.sh`](scripts/wait-agent.sh) | 有界分段等待子 Agent，探测停滞与费用上限，避免工具硬超时 |
+| [`scripts/gate.sh`](scripts/gate.sh) | 代码树指纹与终态检查（Review 是否覆盖最终代码树、Developer Review 批准、状态已终态、决策无 PROPOSED、含 `Models & Usage`） |
 | [`scripts/cleanup-agents.sh`](scripts/cleanup-agents.sh) | 任务完成或终止时一键关闭子 Agent 与 Pane（自动保护 Main Pane） |
 | [`scripts/session-progress.mjs`](scripts/session-progress.mjs) | 探测 Pi Session 活跃度、上下文 Token 与模型花费 |
 | [`scripts/evidence-snapshot.sh`](scripts/evidence-snapshot.sh) | 仅用于重叠脏工作区基线备份及未跟踪文件行级比对 |

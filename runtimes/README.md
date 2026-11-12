@@ -57,7 +57,7 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/wait-agent.sh" <agent> <session-jsonl|-> <ev
 4. **一键回收 Pane**：到达 `core/workflow.md` §5 规定的终态回收节点时（注意 `NEEDS DEVELOPER REVIEW` 期间保留 Pane 不关闭），调用 [cleanup-agents.sh](../scripts/cleanup-agents.sh) 退出本任务子 Agent 并关闭对应 Pane（自动跳过 `HERDR_PANE_ID` 保护 Main 终端）：
 
 ```bash
-bash "$AGENT_WORKBENCH_ROOT/scripts/cleanup-agents.sh" --prefix <task-agent-prefix>
+bash "$AGENT_WORKBENCH_ROOT/scripts/cleanup-agents.sh" --task-root <Task Root> --prefix <task-agent-prefix>
 ```
 
 ## 参考资料

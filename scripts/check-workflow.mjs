@@ -75,7 +75,7 @@ test('repository documents and scripts use Simplified Chinese only (no Tradition
 test('structural checks reject broken file and section pointers', () => {
   const dir = mkdtempSync(join(tmpdir(), 'workbench-docs-'));
   try {
-    for (const path of [...docs, 'LICENSE', 'scripts/check-workflow.mjs', 'scripts/run-check.sh', 'scripts/evidence-snapshot.sh', 'scripts/session-progress.mjs', 'scripts/wait-agent.sh', 'scripts/cleanup-agents.sh']) {
+    for (const path of [...docs, 'LICENSE', 'scripts/check-workflow.mjs', 'scripts/run-check.sh', 'scripts/evidence-snapshot.sh', 'scripts/session-progress.mjs', 'scripts/wait-agent.sh', 'scripts/cleanup-agents.sh', 'scripts/gate.sh']) {
       const destination = join(dir, path);
       mkdirSync(dirname(destination), { recursive: true });
       writeFileSync(destination, read(path));
@@ -158,7 +158,8 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
   assert.match(acceptance, /先改后测时序铁律/);
   assert.match(acceptance, /### 状态与生命周期覆盖/);
   assert.match(acceptance, /允许走 1 次快速通道/);
-  assert.match(acceptance, /凡触及条件分支、状态流转、计算公式、权限校验或接口\/数据契约/);
+  assert.match(acceptance, /含条件分支、状态流转、计算公式、权限校验、接口\/数据契约/);
+  assert.match(acceptance, /Reviewed Tree/);
   assert.match(acceptance, /\*\*Gate 放行条件\*\*：/);
   assert.match(acceptance, /\*\*严禁跳过 `REQUIRED` 的 Developer Review\*\*/);
   assert.match(acceptance, /### 按需异常复盘/);
@@ -258,7 +259,8 @@ test('共享检查入口保留退出码与完整日志，且日志无法打开�
         `printf 'line-%s\\n' {1..60}; printf 'stderr-marker\\n' >&2; exit ${code}`], { encoding: 'utf8' });
       assert.equal(result.status, code);
       const full = readFileSync(log, 'utf8');
-      assert.equal(full.trim().split('\n').length, 61);
+      assert.equal(full.trim().split('\n').length, 62);
+      assert.ok(full.trimEnd().endsWith(`check_exit=${code}`), 'log ends with check_exit for gate readers');
       assert.ok(result.stdout.includes(`check_exit=${code}`));
     }
     const marker = join(dir, 'started');
@@ -404,6 +406,68 @@ esac
   }
 });
 
+test('终态 Gate：指纹按内容计算（提交前后一致），过期、未终态、未批准、PROPOSED、缺成本时拒绝回收', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'workbench-gate-'));
+  const git = (...args) => {
+    const result = spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  const gate = (...args) => spawnSync('bash', [resolve(root, 'scripts/gate.sh'), ...args], { cwd: dir, encoding: 'utf8' });
+  const task = join(dir, 'task');
+  try {
+    git('init', '-q');
+    writeFileSync(join(dir, '.gitignore'), 'task/\n');
+    writeFileSync(join(dir, 'a.ts'), 'export const x = 1;\n');
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'base');
+    const base = git('rev-parse', 'HEAD');
+    mkdirSync(join(task, 'subtasks', 'review'), { recursive: true });
+    writeFileSync(join(task, 'subtasks', 'review', 'review.md'), '# review\n');
+    writeFileSync(join(task, 'decisions.md'), '| D1 | x | USER_APPROVED | CONFIRMED |\n');
+    const overview = ({ state = 'PASS', dr = 'REQUIRED — APPROVED', tree = '', usage = true } = {}) => writeFileSync(join(task, 'overview.md'),
+      `- 当前阶段 / Verdict: ${state}\n- Developer Review: ${dr}\n- Base Commit ${base}\n${tree ? `- Reviewed Tree: ${tree}\n` : ''}${usage ? '## Models & Usage\n' : ''}`);
+
+    writeFileSync(join(dir, 'a.ts'), 'export const x = 2;\n');
+    writeFileSync(join(dir, 'b.ts'), 'export const y = 1;\n');
+    const tree = gate('tree', base).stdout.trim();
+    assert.match(tree, /^[0-9a-f]{40}$/);
+    assert.equal(gate('tree', base).stdout.trim(), tree, 'deterministic');
+
+    overview({ tree });
+    assert.equal(gate('check', task).status, 0);
+
+    git('add', '.');
+    git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'work');
+    assert.equal(gate('tree', base).stdout.trim(), tree, 'fingerprint survives committing');
+    assert.equal(gate('check', task).status, 0, 'gate still passes after commit');
+
+    writeFileSync(join(dir, 'b.ts'), 'export const y = 2;\n');
+    let result = gate('check', task);
+    assert.equal(result.status, 1);
+    assert.match(result.stdout, /gate_fail=review_stale/);
+
+    overview({ tree: gate('tree', base).stdout.trim() });
+    assert.equal(gate('check', task).status, 0, 'updated Reviewed Tree covers the final tree');
+
+    overview({ state: 'IN PROGRESS', dr: 'REQUIRED — PENDING', tree, usage: false });
+    writeFileSync(join(task, 'decisions.md'), '| D1 | x | AGENT_PROPOSAL | PROPOSED |\n');
+    result = gate('check', task);
+    assert.equal(result.status, 1);
+    for (const code of ['overview_status_not_final', 'no_models_and_usage', 'decisions_proposed', 'developer_review_not_approved', 'review_stale']) {
+      assert.match(result.stdout, new RegExp(`gate_fail=${code}`));
+    }
+
+    const fake = join(dir, 'herdr');
+    writeFileSync(fake, '#!/usr/bin/env bash\nprintf \'{"agents":[]}\'\n', { mode: 0o755 });
+    const cleanup = spawnSync('bash', [resolve(root, 'scripts/cleanup-agents.sh'), '--task-root', task, '--prefix', 'x'],
+      { cwd: dir, encoding: 'utf8', env: { ...process.env, HERDR_BIN: fake } });
+    assert.equal(cleanup.status, 5);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('子 Agent 清理脚本：按前缀清理并保护 Main 自身 HERDR_PANE_ID', () => {
   const dir = mkdtempSync(join(tmpdir(), 'workbench-cleanup-'));
   try {
@@ -431,6 +495,11 @@ exit 0
     });
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /cleanup_done closed=2/);
+    const dashed = spawnSync('bash', [resolve(root, 'scripts/cleanup-agents.sh'), '--prefix', 'task42-'], {
+      encoding: 'utf8',
+      env: { ...process.env, HERDR_BIN: herdr, HERDR_PANE_ID: 'w4:pMain', ACTION_LOG: log },
+    });
+    assert.match(dashed.stdout, /cleanup_done closed=2/, 'trailing dash in prefix is tolerated');
     const actions = readFileSync(log, 'utf8');
     assert.match(actions, /pane close w4:p1P/);
     assert.match(actions, /pane close w4:p1Q/);

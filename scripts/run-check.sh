@@ -12,7 +12,7 @@ exec 3>"$log" || { printf 'check_not_run=log_open_failed\n' >&2; exit 2; }
 
 ( "$@" ) >&3 2>&1
 result=$?
+printf 'check_exit=%s\n' "$result" >&3
 exec 3>&-
 tail -n 40 "$log"
-printf 'check_exit=%s\n' "$result"
 exit "$result"
