@@ -4,7 +4,7 @@ L2 任务在 Intake 按 `core/task-classification.md` §1 判定 `Developer Revi
 
 ## 1. 审阅包
 
-Main 向开发者呈现紧凑的审阅摘要，引导从总览按需下钻查看详情：
+Main 向开发者呈现紧凑的审阅摘要，引导从总览按需逐层查阅详情：
 
 - **变更摘要与关键决策**：核心改动、与父 Spec 的对应关系及关键取舍（关联 `decisions.md`）。
 - **关键文件与导航**：核心新增/修改文件路径（含数据库迁移、公共契约与 ADR 更新），以及 `handoff.md`、`overview.md` 入口。

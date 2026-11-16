@@ -4,7 +4,7 @@
 
 ## 1. 自包含 Contract 规则
 
-- **内联通用约束**：Contract 通过 `Role Rules` 字段携带当前角色的权限、工具规范与边界硬护栏；子 Agent 直接读取本 Contract 与目标源码开展工作，并按 Contract 指引参考目标产物模板（`core/templates/`）或专项 Reference（如消费扫描时的 `core/references/code-retrieval.md`）。
+- **内联通用约束**：Contract 通过 `Role Rules` 字段携带当前角色的权限、工具规范与边界硬性限制；子 Agent 直接读取本 Contract 与目标源码开展工作，并按 Contract 指引参考目标产物模板（`core/templates/`）或专项 Reference（如引用排查时的 `core/references/code-retrieval.md`）。
 - 每次新派发子 Agent 时填写 §2 模板字段，不适用的填 `N/A`。Main 须将本任务要求同步更新的文档（如 `AGENTS.md`、`GLOSSARY.md`、`docs/adr/`）一并列入 `Allowed Paths`。
 - 子 Agent 遇到会实质改变产品行为、公共契约、超出 `Allowed Paths` 边界或工作区存在无关残留文件干扰检查的问题时，停下向 Main 报告证据与建议；模块内局部实现细节由子 Agent 自主完成。
 
@@ -60,7 +60,7 @@ Deliverables: 在 <handoff-fix-<n>.md 绝对路径> 记录本轮修改文件、�
 `Visual Implementation` 在 `Context & Plan` 或末尾追加：
 - `Reference`：参考图、设计稿、对标页面或状态规范。
 - `Target & Viewport`：目标 URL / Route、宽高与 DPR（保持共享开发服务原样运行）。
-- `States`：需覆盖的关键状态、受控响应/夹具构造方式，以及输出到 `screenshots/` 的命名约定。执行者必须加载 `skills/ui-impl/SKILL.md` 并亲自读图核验。
+- `States`：需覆盖的关键状态、模拟响应或测试数据的构造方式，以及输出到 `screenshots/` 的命名约定。执行者必须加载 `skills/ui-impl/SKILL.md` 并亲自读图核验。
 
 ## 3. Workspace 与路径边界
 
@@ -82,7 +82,7 @@ Main 在 Intake 执行一次 `git status --porcelain -uall` 记录工作区基�
 | `subtasks/research/research.md` | Researcher | 独立 Research 任务或 L2 按需调研时创建 |
 | `subtasks/implement/handoff.md` | Implementer | 实现摘要、修改文件、Walkthrough、检查结果与残余风险（`core/templates/handoff.template.md`）；修复轮写 `handoff-fix-<n>.md` |
 | `subtasks/implement/visual-report.md` + `screenshots/` | Implementer | `Visual Implementation` 任务创建 |
-| `subtasks/review/review.md` | Reviewer | Review 覆盖范围、P0/P1/P2 Findings 及结论；复审写 `review-fix-<n>.md` |
+| `subtasks/review/review.md` | Reviewer | Review 覆盖范围、P0/P1/P2 Findings 及结论（无独立模板，按 Contract 要求输出状态块与 Findings）；复审写 `review-fix-<n>.md` |
 | `subtasks/test/test-report.md` | Tester | 仅派发了独立 Tester 时创建 |
 | `debug-report.md` / `retro.md` | 对应角色 / Main | Debug 诊断任务或触发异常复盘（`core/acceptance.md` §7）时创建 |
 

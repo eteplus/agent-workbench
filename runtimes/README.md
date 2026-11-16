@@ -42,9 +42,16 @@ Contract `Skills` 字段中的绝对 Source Path 是唯一权威正文来源。�
 
 ## Herdr → Pi 调度协议
 
-1. **创建与复用 Pane**：创建 Shell Pane 时加 `--no-focus` 保持用户焦点；复用策略与新建边界遵循 `core/workflow.md` §5。
-2. **启动与定位 Session**：`herdr agent start` 显式传入 `--provider`、`--model` 与 Thinking 参数。提交 `agent prompt` 后用 `herdr agent get <agent>` 确认 `working`，并从其返回的 `agent_session.value` 读取准确的 `.jsonl` Session 路径。
-3. **默认有界等待与持续推进（保活缓存 + 防超时）**：在目标仓库根调用 [wait-agent.sh](../scripts/wait-agent.sh)。脚本默认每轮等待约 4 分钟（`interval=120`、`max-cycles=2`，既低于宿主 300s Bash 超时，又在 5 分钟 Prompt Cache 有效期内返回保活），即使只传前 3 个参数也安全有界：
+1. **创建与复用 Pane**：创建独立 Tab/Pane 时加 `--no-focus` 保持用户焦点；复用策略与新建边界遵循 `core/workflow.md` §5。
+2. **启动与定位 Session**：`herdr agent start` 显式传入 `--provider`、`--model` 与 Thinking 参数。提交 `agent prompt` 后用 `herdr agent get <name>` 确认 `working`，并从其返回的 `agent_session.value` 读取准确的 `.jsonl` Session 路径：
+
+```bash
+herdr tab create --cwd <Repository Root> --label <name> --no-focus
+herdr agent start <name> --kind pi --pane <pane-id> -- --provider <provider> --model <model> --thinking <level>
+herdr agent prompt <name> "读取并按 Contract 执行与交付：<Contract 绝对路径>"
+```
+
+3. **默认分段限时等待与持续推进（维持缓存 + 防超时）**：在目标仓库根调用 [wait-agent.sh](../scripts/wait-agent.sh)。脚本默认每轮等待约 4 分钟（`interval=120`、`max-cycles=2`，既低于工具单次 300s 超时，又在 5 分钟 Prompt Cache 有效期内返回以维持缓存），即使只传前 3 个参数也安全可控：
 
 ```bash
 bash "$AGENT_WORKBENCH_ROOT/scripts/wait-agent.sh" <agent> <session-jsonl|-> <evidence-dir> [120] [2] [费用上限] [2]

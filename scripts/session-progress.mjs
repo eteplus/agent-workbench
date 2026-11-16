@@ -1,12 +1,28 @@
 #!/usr/bin/env node
 // Compact progress probe for a Pi session file: last activity, context size, cost by model, recent tools.
-// Usage: node session-progress.mjs <session.jsonl> [--reads]
-import { existsSync, readFileSync } from 'node:fs';
+// Usage: node session-progress.mjs <session.jsonl|--self> [--reads]
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
-const [file, flag] = process.argv.slice(2);
-if (!file) {
-  console.error('Usage: node session-progress.mjs <session.jsonl> [--reads]');
+const [arg, flag] = process.argv.slice(2);
+if (!arg) {
+  console.error('Usage: node session-progress.mjs <session.jsonl|--self> [--reads]');
   process.exit(2);
+}
+
+let file = arg;
+if (arg === '--self') {
+  const dir = join(homedir(), '.pi/agent/sessions', `--${process.cwd().replace(/^\/+|\/+$/g, '').replace(/\//g, '-')}--`);
+  file = '-';
+  if (existsSync(dir)) {
+    let latestMtime = -1;
+    for (const name of readdirSync(dir)) {
+      if (!name.endsWith('.jsonl')) continue;
+      const mtime = statSync(join(dir, name)).mtimeMs;
+      if (mtime > latestMtime) { latestMtime = mtime; file = join(dir, name); }
+    }
+  }
 }
 
 if (file === '-' || !existsSync(file)) {

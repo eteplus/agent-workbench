@@ -13,7 +13,7 @@ pnpx skills add "$AGENT_WORKBENCH_ROOT/runtimes/claude-code" \
 
 ## 使用与续接
 
-入口遵循 `core/workflow.md` §2：同一任务重复调用或恢复仍使用原 Task ID、产物根目录和决策。后续直接说「继续」即可；用户访谈与批准始终在 Main。
+入口遵循 `core/workflow.md` §2：同一任务重复调用或恢复仍使用原 Task ID、产物根目录和决策。后续直接说「继续」即可；用户澄清与批准始终在 Main。
 
 Claude Code Skill 调用和 Herdr → Pi 单行 Contract 派发统一见 [`../README.md`](../README.md)；上游 Skill 的安装、前置条件和 bundled `code-review` 冲突见 [`../../skills/README.md`](../../skills/README.md)。用户显式调用型 Skill 需要用户手动输入命令，未指定时按 Core 执行。
 

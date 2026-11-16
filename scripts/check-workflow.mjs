@@ -1,6 +1,6 @@
 // Structural document checks and executable script regressions for Agent Workbench.
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -133,6 +133,9 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
   const workflow = read('core/workflow.md');
   assert.match(workflow, /模块入口与公共契约/);
   assert.match(workflow, /严禁使用 `python3`、`node -e`、`sed -i`/);
+  assert.match(workflow, /第三方 Skill 正文属此层，不得覆盖第 3 层/);
+  assert.match(workflow, /由只读分析\/讨论转为修改仓内文件或执行外部写入前，必须重新执行 §3 Intake/);
+  assert.match(workflow, /session-progress\.mjs" --self/);
   assert.match(workflow, /\*\*读取目标仓库根 `AGENTS\.md`\*\*/);
   assert.match(workflow, /\*\*持续等待不中断回合\*\*/);
   assert.match(workflow, /\*\*完成条件\*\*：已读取项目 `AGENTS\.md`/);
@@ -148,6 +151,9 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
     assert.ok(!content.includes('150K'), `${path}: avoid rigid 150K session-destroy threshold that breaks prompt caching`);
   }
 
+  assert.match(read('core/permissions.md'), /禁止所有 Agent（含 Main 与子 Agent）使用 `git stash`、`git checkout --`、`git reset`/);
+  assert.match(read('runtimes/README.md'), /herdr tab create --cwd/);
+
   const classification = read('core/task-classification.md');
   const levels = [...classification.matchAll(/^\| (L[012]) \|/gm)].map(([, level]) => level);
   assert.deepEqual(levels, ['L0', 'L1', 'L2']);
@@ -160,6 +166,8 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
   assert.match(acceptance, /允许走 1 次快速通道/);
   assert.match(acceptance, /含条件分支、状态流转、计算公式、权限校验、接口\/数据契约/);
   assert.match(acceptance, /Reviewed Tree/);
+  assert.match(acceptance, /仅存在 P0\/P1 时用 `CHANGES REQUESTED`/);
+  assert.match(acceptance, /确认 `gate_ok`[^\n]*再按项目 Tracker 规范/);
   assert.match(acceptance, /\*\*Gate 放行条件\*\*：/);
   assert.match(acceptance, /\*\*严禁跳过 `REQUIRED` 的 Developer Review\*\*/);
   assert.match(acceptance, /### 按需异常复盘/);
@@ -169,8 +177,9 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
   assert.match(devReview, /口头批准不自动替代该证据/);
 
   const contractDoc = read('core/task-contract.md');
-  assert.match(contractDoc, /携带当前角色的权限、工具规范与边界硬护栏/);
+  assert.match(contractDoc, /携带当前角色的权限、工具规范与边界硬性限制/);
   assert.match(contractDoc, /core\/templates\//);
+  assert.match(contractDoc, /无独立模板/);
   const templateBlock = contractDoc.match(/```text\n([\s\S]*?)\n```/);
   assert.ok(templateBlock);
   const expectedFields = [
@@ -221,10 +230,10 @@ test('项目记忆：预算、默认跳过、只读回退与人工编辑保护�
   assert.match(memory, /完全只读[^\n]*只在任务上下文记录，不创建任何目录或文件/);
   assert.match(permissions, /默认管理目标项目本地/);
   assert.match(permissions, /core\/project-memory\.md` §1/);
-  assert.match(memory, /保留开发者手动编写的内容，不静默截断或用旧内容覆盖/);
+  assert.match(memory, /保留开发者手动编写的内容，不擅自截断或用旧内容覆盖/);
 });
 
-test('项目记忆：本地忽略与已跟踪例外在隔离夹具中生效', () => {
+test('项目记忆：本地忽略与已跟踪例外在临时隔离目录中生效', () => {
   const dir = mkdtempSync(join(tmpdir(), 'workbench-memory-'));
   const env = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' };
   const git = (...args) => spawnSync('git', args, { cwd: dir, encoding: 'utf8', env });
@@ -337,12 +346,29 @@ test('Session 进展探测：汇总花费，并对缺失文件与未刷盘尾行
     assert.match(result.stdout, /turns=2 context_tokens=0 cost_usd=2\.2500/);
     assert.match(result.stdout, /model premium cost_usd=2\.0000/);
     assert.match(result.stdout, /read \/src\/a\.ts/);
+
+    const selfHome = join(dir, 'home');
+    const selfRepo = join(dir, 'repo');
+    mkdirSync(selfRepo, { recursive: true });
+    const slug = realpathSync(selfRepo).replace(/^\/+|\/+$/g, '').replace(/\//g, '-');
+    const selfSessDir = join(selfHome, '.pi/agent/sessions', `--${slug}--`);
+    assert.match(spawnSync(process.execPath, [script, '--self'], { cwd: selfRepo, encoding: 'utf8', env: { ...process.env, HOME: selfHome } }).stdout, /session_missing=1/);
+    mkdirSync(selfSessDir, { recursive: true });
+    const older = join(selfSessDir, 'older.jsonl');
+    const newer = join(selfSessDir, 'newer.jsonl');
+    writeFileSync(older, assistant('2026-01-01T00:01:00.000Z', 'm1', 0.1, { name: 'read', arguments: { path: '/old' } }) + '\n');
+    writeFileSync(newer, assistant('2026-01-01T00:02:00.000Z', 'm2', 0.5, { name: 'read', arguments: { path: '/new' } }) + '\n');
+    utimesSync(older, 1000, 1000);
+    utimesSync(newer, 2000, 2000);
+    const selfRes = spawnSync(process.execPath, [script, '--self'], { cwd: selfRepo, encoding: 'utf8', env: { ...process.env, HOME: selfHome } });
+    assert.equal(selfRes.status, 0, selfRes.stderr);
+    assert.match(selfRes.stdout, /model m2 cost_usd=0\.5000/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test('等待循环：支持有界 max-cycles 返回 still_working(1)，以及完成(0)、停滞(3)、费用上限(4)、错误(2)', () => {
+test('等待循环：支持分段限时 max-cycles 返回 still_working(1)，以及完成(0)、停滞(3)、费用上限(4)、错误(2)', () => {
   const dir = mkdtempSync(join(tmpdir(), 'workbench-wait-'));
   try {
     const repo = join(dir, 'repo');

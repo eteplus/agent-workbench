@@ -9,10 +9,10 @@ Core 定义跨 Runtime 通用的工作流规则。每条规则只在一个权威
 | `model-routing.md` | Main / 子 Agent 模型偏好、Thinking、运行时核验、跨家族约束和成本闸门 |
 | `permissions.md` | 角色权限、决策归属、目录级工作区边界、记忆授权、外部副作用、凭据和并行 |
 | `task-contract.md` | 自包含 Contract、内联角色约束、路径边界、任务产物和完成状态 |
-| `acceptance.md` | Handoff、测试与状态覆盖、Git 原生证据、跨家族 Review、增量视觉验收、Gate、最终报告和预算 |
+| `acceptance.md` | Handoff、测试与状态覆盖、Git 原生证据、跨家族 Review、局部视觉验收、Gate、最终报告和预算 |
 | `templates/` | `overview.md`、`decisions.md`、`handoff.md` 模板 |
 | `project-memory.md` | 跨任务项目记忆的边界、预算、默认跳过与维护规则 |
-| `references/code-retrieval.md` | 代码检索工具选择与消费扫描 |
+| `references/code-retrieval.md` | 代码检索工具选择与全仓引用排查 |
 | `references/developer-review.md` | Developer Review 触发条件、审阅包与快速反馈通道 |
 | `references/recovery.md` | 超时、部分执行、工具和模型异常恢复 |
 
