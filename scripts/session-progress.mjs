@@ -46,7 +46,8 @@ for (const line of readFileSync(file, 'utf8').split('\n')) {
   if (message.role !== 'assistant') continue;
   turns += 1;
   const usage = message.usage ?? {};
-  context = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
+  const tokens = (usage.input ?? 0) + (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0);
+  if (tokens > 0) context = tokens;
   cost[message.model] = (cost[message.model] ?? 0) + (message.usage?.cost?.total ?? 0);
   for (const block of message.content ?? []) {
     if (block.type !== 'toolCall') continue;

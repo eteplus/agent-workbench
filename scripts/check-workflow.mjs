@@ -166,6 +166,8 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
   assert.match(acceptance, /允许走 1 次快速通道/);
   assert.match(acceptance, /含条件分支、状态流转、计算公式、权限校验、接口\/数据契约/);
   assert.match(acceptance, /Reviewed Tree/);
+  assert.match(acceptance, /严禁并发运行检查/);
+  assert.match(acceptance, /只运行实际被改写文件所属包\/模块的单测或 `lint` 检查/);
   assert.match(acceptance, /仅存在 P0\/P1 时用 `CHANGES REQUESTED`/);
   assert.match(acceptance, /确认 `gate_ok`[^\n]*再按项目 Tracker 规范/);
   assert.match(acceptance, /\*\*Gate 放行条件\*\*：/);
@@ -357,11 +359,15 @@ test('Session 进展探测：汇总花费，并对缺失文件与未刷盘尾行
     const older = join(selfSessDir, 'older.jsonl');
     const newer = join(selfSessDir, 'newer.jsonl');
     writeFileSync(older, assistant('2026-01-01T00:01:00.000Z', 'm1', 0.1, { name: 'read', arguments: { path: '/old' } }) + '\n');
-    writeFileSync(newer, assistant('2026-01-01T00:02:00.000Z', 'm2', 0.5, { name: 'read', arguments: { path: '/new' } }) + '\n');
+    writeFileSync(newer, [
+      JSON.stringify({ type: 'message', timestamp: '2026-01-01T00:02:00.000Z', message: { role: 'assistant', model: 'm2', usage: { input: 100, cacheRead: 9000, cost: { total: 0.5 } }, content: [] } }),
+      assistant('2026-01-01T00:02:10.000Z', 'm2', 0, { name: 'read', arguments: { path: '/new' } }),
+    ].join('\n') + '\n');
     utimesSync(older, 1000, 1000);
     utimesSync(newer, 2000, 2000);
     const selfRes = spawnSync(process.execPath, [script, '--self'], { cwd: selfRepo, encoding: 'utf8', env: { ...process.env, HOME: selfHome } });
     assert.equal(selfRes.status, 0, selfRes.stderr);
+    assert.match(selfRes.stdout, /context_tokens=9100 cost_usd=0\.5000/);
     assert.match(selfRes.stdout, /model m2 cost_usd=0\.5000/);
   } finally {
     rmSync(dir, { recursive: true, force: true });

@@ -33,6 +33,7 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/run-check.sh" /absolute/task/subtasks/implem
 
 - 命令需带环境变量时写成 `env VAR=x <命令>`，否则会被当作命令名。
 - 将其作为单次工具调用的最后一条命令（后面不接管道或附加命令），使工具退出码等于真实 `check_exit`。
+- **严禁并发运行检查**：测试与验证命令必须串行作为独立工具调用执行，禁止在批量脚本（如 `Promise.all`）中并发跑多条检查或与其他重任务并行，避免 CPU 争抢导致单测超时返工。
 - 预期失败测试（`red`）保留非零退出码并在报告中标明 `EXPECTED FAIL`。后台长任务必须在原上下文 `wait` 拿到最终退出码后才算验证完成，仅拿到启动 PID 标为 `NOT VERIFIED`。
 
 ### Git 原生证据
@@ -74,7 +75,7 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/evidence-snapshot.sh" --verify /absolute/tas
 当 Gate 唯一待处理项或 Developer Review / 提交前后纯格式化（如 format / lint fix，且核对 `git diff` 无逻辑变化）**只改文档、ADR、`GLOSSARY.md`、注释、格式排版与用户可见文案字符串**（不含源码文件中的条件、表达式和属性；报告事实笔误同理）时，允许走 1 次快速通道：
 
 1. Main 直接用 `edit` / `write` 完成修改（或向仍在运行的原 Implementer Session 发简短指令修改）。
-2. 停止修改后通过 `run-check.sh` 运行受影响检查；视觉任务按 §4 仅重截受影响状态并读图确认。
+2. 停止修改后通过 `run-check.sh` 串行运行受影响检查（视觉任务按 §4 仅重截受影响状态并读图确认）：提交前后仅纯格式化改写（`git diff` 核对无逻辑、类型或文案语义变化）或纯文档微调时，**只运行实际被改写文件所属包/模块的单测或 `lint` 检查**并说明复用提交前全量/跨包校验的依据，不盲目重跑耗时数分钟的跨包全量检查（既缩短收尾耗时，也避免超出 5 分钟 Prompt Cache 有效期）。
 3. Main 核对完整 `git diff` 确认无顺带逻辑改动后放行，免派独立 Reviewer 复审，并运行 `gate.sh tree <Base Commit>` 把结果写入 `overview.md` 的 `Fast Lane Tree:`。
 4. **逻辑与次数排除**：凡触及上述范围之外的生产代码、配置、Schema、迁移或测试文件（含条件分支、状态流转、计算公式、权限校验、接口/数据契约，不论行数多少），或已使用过 1 次快速通道后的再次修改，一律走下方定向修复与复审流程：Main 可自己小改，但必须写 `handoff-fix-<n>.md`，并由原 Reviewer 复核增量、产出 `review-fix-<n>.md`，Main 随后更新 `overview.md` 的 `Reviewed Tree:`。用户在 Review 之后追加或推翻设计（规格变更）同样适用，已有 Review 对变更部分作废。
 
