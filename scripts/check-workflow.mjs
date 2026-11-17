@@ -135,7 +135,7 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
   assert.match(workflow, /严禁使用 `python3`、`node -e`、`sed -i`/);
   assert.match(workflow, /第三方 Skill 正文属此层，不得覆盖第 3 层/);
   assert.match(workflow, /由只读分析\/讨论转为修改仓内文件或执行外部写入前，必须重新执行 §3 Intake/);
-  assert.match(workflow, /session-progress\.mjs" --self/);
+  assert.match(workflow, /接近模型窗口上限或出现压缩告警/);
   assert.match(workflow, /\*\*读取目标仓库根 `AGENTS\.md`\*\*/);
   assert.match(workflow, /\*\*持续等待不中断回合\*\*/);
   assert.match(workflow, /\*\*完成条件\*\*：已读取项目 `AGENTS\.md`/);
@@ -161,7 +161,7 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
   assert.match(classification, /收尾快速通道/);
 
   const acceptance = read('core/acceptance.md');
-  assert.match(acceptance, /先改后测时序铁律/);
+  assert.match(acceptance, /先改后测/);
   assert.match(acceptance, /### 状态与生命周期覆盖/);
   assert.match(acceptance, /允许走 1 次快速通道/);
   assert.match(acceptance, /含条件分支、状态流转、计算公式、权限校验、接口\/数据契约/);
@@ -169,7 +169,8 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
   assert.match(acceptance, /严禁并发运行检查/);
   assert.match(acceptance, /只运行实际被改写文件所属包\/模块的单测或 `lint` 检查/);
   assert.match(acceptance, /仅存在 P0\/P1 时用 `CHANGES REQUESTED`/);
-  assert.match(acceptance, /确认 `gate_ok`[^\n]*再按项目 Tracker 规范/);
+  assert.match(acceptance, /确认 `gate_ok`[^\n]*再按项目议题规范/);
+  assert.match(acceptance, /session-progress\.mjs" --self/);
   assert.match(acceptance, /\*\*Gate 放行条件\*\*：/);
   assert.match(acceptance, /\*\*严禁跳过 `REQUIRED` 的 Developer Review\*\*/);
   assert.match(acceptance, /### 按需异常复盘/);
@@ -179,7 +180,7 @@ test('Main boundary, completion criteria, guarded fast-path, and self-contained 
   assert.match(devReview, /口头批准不自动替代该证据/);
 
   const contractDoc = read('core/task-contract.md');
-  assert.match(contractDoc, /携带当前角色的权限、工具规范与边界硬性限制/);
+  assert.match(contractDoc, /携带当前角色的权限、工具规范与边界限制/);
   assert.match(contractDoc, /core\/templates\//);
   assert.match(contractDoc, /无独立模板/);
   const templateBlock = contractDoc.match(/```text\n([\s\S]*?)\n```/);
@@ -267,10 +268,18 @@ test('共享检查入口保留退出码与完整日志，且日志无法打开�
     for (const code of [0, 1, 7]) {
       const log = join(dir, `exit-${code}.log`);
       const result = spawnSync('bash', [runner, log, 'bash', '-c',
-        `printf 'line-%s\\n' {1..60}; printf 'stderr-marker\\n' >&2; exit ${code}`], { encoding: 'utf8' });
+        `printf 'line-%s\\n' {1..60}; printf 'stderr-marker\\n' >&2; exit ${code}`], { encoding: 'utf8', cwd: dir });
       assert.equal(result.status, code);
       const full = readFileSync(log, 'utf8');
-      assert.equal(full.trim().split('\n').length, 62);
+      assert.match(full, /check_command=bash -c /);
+      assert.match(full, /check_started_at=\S+\+0800/);
+      assert.match(full, /check_finished_at=\S+\+0800/);
+      assert.match(full, /check_head=\S+/);
+      assert.match(full, /check_tree=\S+/);
+      assert.match(full, /check_head=N\/A/);
+      assert.match(full, /check_tree=N\/A/);
+      assert.match(full, /check_tree_after=N\/A/);
+      assert.equal((full.match(/^line-/gm) || []).length, 60);
       assert.ok(full.trimEnd().endsWith(`check_exit=${code}`), 'log ends with check_exit for gate readers');
       assert.ok(result.stdout.includes(`check_exit=${code}`));
     }
@@ -280,6 +289,33 @@ test('共享检查入口保留退出码与完整日志，且日志无法打开�
       assert.equal(result.status, 2);
       assert.ok(!existsSync(marker));
     }
+
+    const repo = join(dir, 'repo');
+    const sub = join(repo, 'apps', 'web');
+    mkdirSync(sub, { recursive: true });
+    spawnSync('git', ['init', '-q'], { cwd: repo });
+    writeFileSync(join(repo, '.gitignore'), 'logs/\n');
+    writeFileSync(join(sub, 'index.ts'), 'export const v = 1;\n');
+    spawnSync('git', ['add', '.'], { cwd: repo });
+    spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'init'], { cwd: repo });
+    const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    writeFileSync(join(sub, 'index.ts'), 'export const v = 2;\n');
+    const expectedTree = spawnSync('bash', [resolve(root, 'scripts/gate.sh'), 'tree', head], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    assert.equal(spawnSync('bash', [resolve(root, 'scripts/gate.sh'), 'tree', head], { cwd: sub, encoding: 'utf8' }).stdout.trim(), expectedTree, '子目录计算 tree 指纹应与仓库根一致');
+    mkdirSync(join(repo, 'logs'), { recursive: true });
+    const subLog = join(repo, 'logs', 'sub.log');
+    const subRes = spawnSync('bash', [runner, subLog, 'true'], { cwd: sub, encoding: 'utf8' });
+    assert.equal(subRes.status, 0);
+    const subLogText = readFileSync(subLog, 'utf8');
+    assert.match(subLogText, new RegExp(`check_head=${head}`));
+    assert.match(subLogText, new RegExp(`check_tree=${expectedTree}`));
+    assert.match(subLogText, new RegExp(`check_tree_after=${expectedTree}`));
+    const mutLog = join(repo, 'logs', 'mut.log');
+    const mutRes = spawnSync('bash', [runner, mutLog, 'bash', '-c', 'echo "export const v = 3;" > index.ts'], { cwd: sub, encoding: 'utf8' });
+    assert.equal(mutRes.status, 0);
+    const mutText = readFileSync(mutLog, 'utf8');
+    assert.match(mutText, new RegExp(`check_tree=${expectedTree}`));
+    assert.doesNotMatch(mutText, new RegExp(`check_tree_after=${expectedTree}`));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
@@ -466,6 +502,30 @@ test('终态 Gate：指纹按内容计算（提交前后一致），过期、未
     assert.match(tree, /^[0-9a-f]{40}$/);
     assert.equal(gate('tree', base).stdout.trim(), tree, 'deterministic');
 
+    for (const args of [[], ['tree'], ['tree', base, 'extra'], ['check', task, 'extra'], ['technical', task, 'extra']]) {
+      assert.equal(gate(...args).status, 2, '多余参数必须报错，不能静默忽略');
+    }
+
+    overview({ tree });
+    const overviewPath = join(task, 'overview.md');
+    writeFileSync(overviewPath, readFileSync(overviewPath, 'utf8').replace(base, base.slice(0, 8)));
+    let shortBase = gate('check', task);
+    assert.equal(shortBase.status, 1);
+    assert.match(shortBase.stdout, /gate_fail=base_commit_not_full/);
+    overview({ tree, state: 'NEEDS DEVELOPER REVIEW', dr: 'REQUIRED — PENDING', usage: false });
+    assert.equal(gate('technical', task).status, 0, '技术检查不代替人工批准');
+    assert.equal(gate('check', task).status, 1, '最终检查仍须人工批准');
+
+    overview({ tree });
+    writeFileSync(overviewPath, readFileSync(overviewPath, 'utf8').replace(base, 'f'.repeat(40)));
+    assert.match(gate('technical', task).stdout, /gate_fail=tree_hash_error/);
+    writeFileSync(overviewPath, '- Reviewed Tree: ' + tree + '\n');
+    assert.match(gate('technical', task).stdout, /gate_fail=no_base_commit/);
+    rmSync(join(task, 'subtasks', 'review', 'review.md'));
+    const missingBoth = gate('technical', task).stdout;
+    assert.match(missingBoth, /gate_fail=no_base_commit/);
+    assert.match(missingBoth, /gate_fail=no_review_report/);
+    writeFileSync(join(task, 'subtasks', 'review', 'review.md'), '# review\n');
     overview({ tree });
     assert.equal(gate('check', task).status, 0);
 
@@ -481,6 +541,10 @@ test('终态 Gate：指纹按内容计算（提交前后一致），过期、未
 
     overview({ tree: gate('tree', base).stdout.trim() });
     assert.equal(gate('check', task).status, 0, 'updated Reviewed Tree covers the final tree');
+
+    const passWithPendingExt = readFileSync(overviewPath, 'utf8') + '- External Delivery: IN PROGRESS\n| Main | m | s | p | IN PROGRESS |\n';
+    writeFileSync(overviewPath, passWithPendingExt);
+    assert.equal(gate('check', task).status, 0, 'External Delivery 或正文中的 IN PROGRESS 不应误拦已终态的 Verdict');
 
     overview({ state: 'IN PROGRESS', dr: 'REQUIRED — PENDING', tree, usage: false });
     writeFileSync(join(task, 'decisions.md'), '| D1 | x | AGENT_PROPOSAL | PROPOSED |\n');
@@ -511,6 +575,7 @@ if [[ $1 == agent && $2 == list ]]; then
 {"result":{"agents":[
   {"name":"task42","pane_id":"w4:p1P"},
   {"name":"task42-review","pane_id":"w4:p1Q"},
+  {"name":"task42-headless","pane_id":""},
   {"name":"task42-main","pane_id":"w4:pMain"},
   {"name":"other-task","pane_id":"w4:p99"}
 ]}}
@@ -526,15 +591,17 @@ exit 0
       env: { ...process.env, HERDR_BIN: herdr, HERDR_PANE_ID: 'w4:pMain', ACTION_LOG: log },
     });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.match(result.stdout, /cleanup_done closed=2/);
+    assert.match(result.stdout, /cleanup_done closed=3/);
     const dashed = spawnSync('bash', [resolve(root, 'scripts/cleanup-agents.sh'), '--prefix', 'task42-'], {
       encoding: 'utf8',
       env: { ...process.env, HERDR_BIN: herdr, HERDR_PANE_ID: 'w4:pMain', ACTION_LOG: log },
     });
-    assert.match(dashed.stdout, /cleanup_done closed=2/, 'trailing dash in prefix is tolerated');
+    assert.match(dashed.stdout, /cleanup_done closed=3/, 'trailing dash in prefix is tolerated');
     const actions = readFileSync(log, 'utf8');
     assert.match(actions, /pane close w4:p1P/);
     assert.match(actions, /pane close w4:p1Q/);
+    assert.match(actions, /agent send-keys task42-headless ctrl-c/);
+    assert.ok(!actions.includes('agent stop'), 'must not invoke nonexistent herdr agent stop');
     assert.ok(!actions.includes('w4:pMain'), 'must never close Main pane');
     assert.ok(!actions.includes('w4:p99'), 'must not close unrelated agent pane');
   } finally {

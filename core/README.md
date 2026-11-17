@@ -2,14 +2,14 @@
 
 Core 定义跨 Runtime 通用的工作流规则。每条规则只在一个权威文件中维护，其他文档通过引用使用：
 
-| 文件 | 权威范围 |
+| 文件 | 负责范围 |
 |---|---|
-| `workflow.md` | Main 职责、任务启动与续接、阶段流程、Session 复用和规则按需加载 |
+| `workflow.md` | Main 职责、任务启动与续接、阶段流程、Session 复用和按需加载规则 |
 | `task-classification.md` | L0/L1/L2 分级、任务类型、流程选择、收尾快速通道与 Plan 条件 |
 | `model-routing.md` | Main / 子 Agent 模型偏好、Thinking、运行时核验、跨家族约束和成本闸门 |
-| `permissions.md` | 角色权限、决策归属、目录级工作区边界、记忆授权、外部副作用、凭据和并行 |
-| `task-contract.md` | 自包含 Contract、内联角色约束、路径边界、任务产物和完成状态 |
-| `acceptance.md` | Handoff、测试与状态覆盖、Git 原生证据、跨家族 Review、局部视觉验收、Gate、最终报告和预算 |
+| `permissions.md` | 角色权限、决策分工、目录级写入边界、记忆授权、外部操作约束、凭据和并行 |
+| `task-contract.md` | 独立任务单（Contract）、内嵌角色约束、路径边界、任务产物和完成状态 |
+| `acceptance.md` | Handoff、测试与状态覆盖、Git 证据、跨家族 Review、局部视觉验收、Gate、最终报告和预算 |
 | `templates/` | `overview.md`、`decisions.md`、`handoff.md` 模板 |
 | `project-memory.md` | 跨任务项目记忆的边界、预算、默认跳过与维护规则 |
 | `references/code-retrieval.md` | 代码检索工具选择与全仓引用排查 |
@@ -27,7 +27,7 @@ Core 定义跨 Runtime 通用的工作流规则。每条规则只在一个权威
 | 术语 | 含义 | 已停用的别名 |
 |---|---|---|
 | Main | 当前会话中承担规划、决策、调度和验收的 Agent | Main Agent、主控、Orchestrator |
-| Task Contract（简称 Contract） | Main 派发给子 Agent 的自包含任务说明文件 | 契约、任务契约 |
+| Task Contract（简称 Contract） | Main 派发给子 Agent 的独立完整任务单（自带目标、边界与规则） | 契约、任务契约 |
 | 契约 | 仅指 API、数据结构、事件、数据库等接口契约 | — |
 | Handoff | Implementer 交付的实现说明 `handoff.md` | 交接、实现交接 |
 | Review / Reviewer | 独立代码与方案检查及其执行者 | 审查 |
@@ -50,9 +50,9 @@ Core 定义跨 Runtime 通用的工作流规则。每条规则只在一个权威
 
 1. 产品与工具名：Claude Code、Pi、Herdr。
 2. 字面标识符：路径、命令、环境变量、Contract 字段名、状态枚举值。
-3. 无通行中文译名的技术词：Diff、Commit、Session、Skill、Token。
+3. 常见英文技术词：Diff、Commit、Session、Skill、Token。
 4. 上方术语表中的术语与阶段名。
 
 表头、列表标签和模板字段名使用中文；字段名本身是术语或 Contract 字段时保留原词。引号统一使用「」。
 
-例外：`skills/` 下的 Skill 正文、references、frontmatter `description` 与 `UPSTREAM.md` 模板，以及 Runtime 入口的 `description` 使用英文，便于跨仓库复用和触发匹配。本约定只约束仓库自身文档；任务产物语言遵循 `workflow.md` §2 的 Output Language。
+例外：`skills/` 下的 Skill 正文、参考文档、文件头 `description` 与 `UPSTREAM.md` 模板，以及 Runtime 入口的 `description` 使用英文，便于跨仓库复用和触发匹配。本约定只约束仓库自身文档；任务产物语言遵循 `workflow.md` §2 的 Output Language。

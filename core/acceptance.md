@@ -1,18 +1,18 @@
 # 测试、Review、Gate 与验收
 
-本文件定义 Handoff、测试与状态覆盖、Git 原生证据、独立跨家族 Review、增量视觉验收、Gate（含收尾快速通道）、Main 验收和阶段预算。
+本文件定义 Handoff、测试与状态覆盖、Git 证据、独立跨家族 Review、局部视觉验收、Gate（含收尾快速通道）、Main 验收和阶段预算。
 
 ## 1. Handoff
 
-L2 代码实现由 Herdr → Pi Implementer 按自包含 Contract 完成：
+L2 代码实现由 Herdr → Pi Implementer 按 Contract 独立完成：
 
 - 修改源码、测试、文档和报告**必须使用 Runtime 的 `edit` / `write` 工具，严禁使用 `python3`、`node -e`、`sed -i` 脚本改写文件**。
-- 先编写或更新针对性单测验证预期行为（缺陷修复先确认未改前失败 `red`，再改至通过 `green`），全部源码修改完成后运行项目检查并写入 `handoff.md`（结构见 `core/templates/handoff.template.md`）。
+- 先编写或更新针对性单测验证预期行为；缺陷能低成本复现时，先保留未修复时失败的记录，再修复至通过。无法这样验证时，说明原因和替代证据，不补写并未执行的失败记录。全部源码修改完成后运行项目检查并写入 `handoff.md`（结构见 `core/templates/handoff.template.md`）。
 - Main 阅读 `handoff.md` 顶部状态、Walkthrough 及 `git diff --stat` 后安排独立 Review。
 
 ## 2. 测试、状态覆盖与工作区证据
 
-- **先改后测时序铁律**：所有作为验收依据的检查必须在**最后一次源码/测试编辑之后**执行（Main 核对检查日志时间不早于改动文件修改时间或最后一次 `edit`）；检查完成后若又发生了任何源码修改，原日志失效，必须重跑受影响检查。
+- **先改后测**：每项检查必须覆盖被验收的版本；Main 核对对应文件的最后修改和日志中的版本、时间。检查后又修改了相关源码或测试，必须重跑受影响检查；未受影响的旧日志可按下条说明复用，不能称全部日志都晚于最后编辑。
 - **复用同版本日志**：Implementer 已在最新代码上运行并通过的基础检查与集成检查（如 `pnpm verify`、隔离集成测试），只要日志与退出码完整真实，Main 与 Reviewer 直接核验并复用日志；独立 Tester 仅在存在 Implementer 未覆盖的独立环境或端到端场景时派发。
 - 后续局部改动未触及已验证模块时，只运行受影响的增量检查并说明复用依据。
 
@@ -21,7 +21,7 @@ L2 代码实现由 Herdr → Pi Implementer 按自包含 Contract 完成：
 功能涉及异步数据流（如 SSE / WebSocket）、订阅、缓存、可恢复状态或多处共用的联动状态时，方案与回归测试须覆盖完整状态生命周期：
 
 - **关键状态转换**：初始空态、运行中增量/替换、正常终态、失败/中止异常终态、页面刷新或重连恢复，以及切换上下文时的旧值隔离。
-- **测试输入合法性**：新增测试复用项目带类型约束的测试数据或真实构造器，确保输入符合生产代码的业务约束，避免用类型强转拼凑出真实运行中不可能出现的异常状态。
+- **测试数据符合业务约束**：新增测试复用项目带类型约束的测试数据或真实构造器，确保输入符合生产代码的业务约束，避免用类型强转拼凑出真实运行中不可能出现的假数据。
 
 ### 共享检查入口
 
@@ -32,13 +32,15 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/run-check.sh" /absolute/task/subtasks/implem
 ```
 
 - 命令需带环境变量时写成 `env VAR=x <命令>`，否则会被当作命令名。
-- 将其作为单次工具调用的最后一条命令（后面不接管道或附加命令），使工具退出码等于真实 `check_exit`。
+- 将其作为单次工具调用的最后一条命令（后面不接管道或附加命令），使工具退出码等于真实 `check_exit`。多条关联命令需记入同一份日志时，用 `bash -c 'cmd1 && cmd2'` 作为单个命令传给 `run-check.sh`，不要把 `&&` 写在 `run-check.sh` 之外。
 - **严禁并发运行检查**：测试与验证命令必须串行作为独立工具调用执行，禁止在批量脚本（如 `Promise.all`）中并发跑多条检查或与其他重任务并行，避免 CPU 争抢导致单测超时返工。
 - 预期失败测试（`red`）保留非零退出码并在报告中标明 `EXPECTED FAIL`。后台长任务必须在原上下文 `wait` 拿到最终退出码后才算验证完成，仅拿到启动 PID 标为 `NOT VERIFIED`。
+- `run-check.sh` 自动记录命令、目录、完整 HEAD、检查前后代码树指纹、起止时间（Asia/Shanghai，UTC+8）及退出码；非 Git 目录的版本标为 `N/A`。日志放在任务产物目录并按约定忽略，避免日志本身改变指纹。前后指纹不一致时先查明原因，不能直接当作同版本检查通过。
+- 报告对照预期与实际执行的模块、用例或数量；测试工具未按过滤参数缩小范围时明确提示。脚本不能理解所有测试工具的输出，范围由执行者核对，不将整包测试写成定向测试。
 
-### Git 原生证据
+### Git 证据
 
-- **干净基线（默认）**：初始工作区干净（或既有脏文件已列入 `Excluded Paths` 保持未动）时，直接以 `Base Commit`、`git status --porcelain -uall`、`git diff <Base Commit>`、新增未跟踪源文件本身及先改后测日志作为验收事实源。
+- **干净基线（默认）**：初始工作区干净（或既有脏文件已列入 `Excluded Paths` 保持未动）时，直接以 `Base Commit`、`git status --porcelain -uall`、`git diff <Base Commit>`、新增未跟踪源文件本身及先改后测日志作为验收依据。
 - **重叠脏路径 / 并发写入保护（按需）**：仅当获授权修改任务前已脏的重叠文件，或存在多方并发修改风险时，使用 [evidence-snapshot.sh](../scripts/evidence-snapshot.sh) 保存基线与未跟踪文件副本（含完整源文本以便逐行 `diff -u`）：
 
 ```bash
@@ -51,11 +53,11 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/evidence-snapshot.sh" --verify /absolute/tas
 所有 L2 代码变更默认执行 **1 轮跨模型家族 Primary Review**（Reviewer 模型家族与 Implementer 不同，见 `core/model-routing.md` §4）：
 
 - **输入与方式**：Reviewer 以工作区当前源码与 `Base Commit` 的完整 `git diff`、本次新增未跟踪文件的全文 `read`、原始需求与已确认决策，以及 Implementer 的测试日志为主进行审查（仅在跨文件调用方不明时定点补查 `codegraph`）；保持只读，输出 `review.md`（结论取 `APPROVED` / `CONCERNS` / `CHANGES REQUESTED`，仅存在 P0/P1 时用 `CHANGES REQUESTED`）。Reviewer 不写代码树指纹；Review 完成且 Implementer 已停止后，由 Main 在仓库根运行 `bash "$AGENT_WORKBENCH_ROOT/scripts/gate.sh" tree <Base Commit>`，写入 `overview.md` 的 `Reviewed Tree: <hash>`（Review 覆盖的代码树指纹，按文件内容计算，提交前后不变）。
-- **审查重点**：需求与父 Spec 一致性（含配套 ADR / `GLOSSARY.md` / 文档同步要求）、状态生命周期与异常边界、数据/接口契约安全，以及**新增测试输入的真实合法性与关键断言覆盖**。
+- **审查重点**：需求与上级需求文档一致性（含配套 ADR / `GLOSSARY.md` / 文档同步要求）、状态生命周期与异常边界、数据/接口契约安全，以及**新增测试数据是否符合业务约束、关键断言是否有效**。
 - **Finding 分级**（格式：`ID | Severity | File:Line | Issue | Evidence | Suggested Fix`）：
   - **P0**：核心功能失效、崩溃，或严重的数据损坏、安全、权限、契约破坏。
   - **P1**：明确行为缺陷、需求遗漏，或关键测试无效以致掩盖实质风险。
-  - **P2**：局部代码风格、不阻塞交付的无障碍改进或防御性增强建议——记录到最终报告 `Unresolved`，不进入自动修复循环，Main 也不得在 Review 之后顺手修改生产代码（但若某条 P2 指向本任务 Spec 明确要求的文档/ADR 交付缺口，Main 须在本任务提交前补齐或请用户明确决定拆单，不得擅自搁置后直接报 `PASS`）。
+  - **P2**：局部代码风格、不阻塞交付的无障碍改进或防御性增强建议——记录到最终报告 `Unresolved`，逐项决定后续处理、接受风险或不处理，说明理由和已确认的负责人（未确定时写待确认，不擅自指派），不进入自动修复循环，Main 也不得在 Review 之后顺手修改生产代码（但若某条 P2 指向本任务需求明确要求的文档/ADR 交付缺口，Main 须在本任务提交前补齐或请用户明确决定拆单，不得擅自搁置后直接报 `PASS`）。
 - **争议裁决**：对 Reviewer 提出的争议项，Main 直接结合当前源码、Diff 与测试证据裁决，驳回 P0/P1 或对规格措辞的不同理解须在 `decisions.md` 记一行（Finding / 决定 / 证据）；涉及业务语义未定义的交用户 Clarify。仅当涉及高危安全、资金或不可逆迁移且单轮 Review 仍无法确认风险时，Main 可按需增派一次另一跨家族模型做定向复核。
 
 ## 4. 视觉验收与局部重截
@@ -77,21 +79,29 @@ bash "$AGENT_WORKBENCH_ROOT/scripts/evidence-snapshot.sh" --verify /absolute/tas
 1. Main 直接用 `edit` / `write` 完成修改（或向仍在运行的原 Implementer Session 发简短指令修改）。
 2. 停止修改后通过 `run-check.sh` 串行运行受影响检查（视觉任务按 §4 仅重截受影响状态并读图确认）：提交前后仅纯格式化改写（`git diff` 核对无逻辑、类型或文案语义变化）或纯文档微调时，**只运行实际被改写文件所属包/模块的单测或 `lint` 检查**并说明复用提交前全量/跨包校验的依据，不盲目重跑耗时数分钟的跨包全量检查（既缩短收尾耗时，也避免超出 5 分钟 Prompt Cache 有效期）。
 3. Main 核对完整 `git diff` 确认无顺带逻辑改动后放行，免派独立 Reviewer 复审，并运行 `gate.sh tree <Base Commit>` 把结果写入 `overview.md` 的 `Fast Lane Tree:`。
-4. **逻辑与次数排除**：凡触及上述范围之外的生产代码、配置、Schema、迁移或测试文件（含条件分支、状态流转、计算公式、权限校验、接口/数据契约，不论行数多少），或已使用过 1 次快速通道后的再次修改，一律走下方定向修复与复审流程：Main 可自己小改，但必须写 `handoff-fix-<n>.md`，并由原 Reviewer 复核增量、产出 `review-fix-<n>.md`，Main 随后更新 `overview.md` 的 `Reviewed Tree:`。用户在 Review 之后追加或推翻设计（规格变更）同样适用，已有 Review 对变更部分作废。
+4. **逻辑与次数排除**：凡触及上述范围之外的生产代码、配置、Schema、迁移或测试文件（含条件分支、状态流转、计算公式、权限校验、接口/数据契约，不论行数多少），或已使用过 1 次快速通道后的再次修改，一律交由 Implementer 按下方定向修复与复审流程处理，不与注释或格式修改合并算作收尾微调。Main 确需接管时，先在 `overview.md` 记录无法继续委派的原因、接管范围和验证安排，仍须写 `handoff-fix-<n>.md`，由独立 Reviewer 产出 `review-fix-<n>.md`，再更新 `Reviewed Tree:`。用户在 Review 之后追加或推翻设计同样适用，已有 Review 对变更部分作废。
 
 ### P0/P1 实质缺陷定向修复
 
 1. 属于需求/决策未定义的边界行为时，Main 先向用户 Clarify 并记入 `decisions.md`，不计入缺陷修复轮次。
-2. 明确 P0/P1 代码缺陷：按 `core/workflow.md` §5 复用原 Implementer Session 发送增量修复消息，停止修改后运行针对性单测与必要检查，写入简短 `handoff-fix-<n>.md`。
-3. 复用原 Reviewer Session 仅对本轮增量改动做定向复核，确认原 P0/P1 已关闭且无新回归。
+2. 明确 P0/P1 代码缺陷（或已决定修复的涉及生产逻辑/测试的 P2）：按 `core/workflow.md` §5 优先复用原 Implementer Session；原执行者不可用时另派 Implementer。按 §1 保留修复前后验证记录，停止修改后运行针对性单测与必要检查，写入简短 `handoff-fix-<n>.md`。
+3. 复用原 Reviewer Session 对本轮增量改动做定向复核，确认原 P0/P1 已关闭且无新回归；报告分别列出「本轮发现」和「累计未解决项」，沿用原 Finding ID。定向复审未发现新问题，不代表历史 P2 已关闭。
 4. 实质缺陷修复最多 **2 轮**；第 2 轮后仍存在未解决 P0/P1 时停止循环，标记 `BLOCKED` 并报告用户。
 
-**Gate 放行条件**：`overview.md` 的 `Reviewed Tree`（或 `Fast Lane Tree`）等于当前代码树，全部验证日志均晚于最后一次代码编辑，必需检查 `check_exit=0`，P0/P1 Finding 清零，Spec 要求的配套文档/ADR 已齐备（或经用户明确同意延后），且每条原始验收条件均已对应到通过的测试或已读核验的截图。
+**Gate 放行条件**：
+- `overview.md` 的 `Reviewed Tree`（或 `Fast Lane Tree`）等于当前代码树，各项必需检查覆盖当前受影响版本且 `check_exit=0`，P0/P1 Finding 清零。
+- 需求要求的配套文档/ADR 已齐备（或经用户明确同意延后），每条原始验收条件均有对应证据。
+- 证据中分别写明「真实观察」「受控验证（如本地造数据或模拟接口测出的结果）」「尚未验证」：没有出现问题不等于防护分支有效，未触发的分支须主动构造场景验证；没有改动前后的同条件对比数据时，不写「提升了多少」。必需项尚未验证时不能放行。
+
+人工核对以上证据后，运行 `bash "$AGENT_WORKBENCH_ROOT/scripts/gate.sh" technical <Task Root>` 检查基线、审查报告和版本是否齐备；通过只输出 `gate_technical_ok`，不代表人工批准或外部交付完成。`gate.sh check <Task Root>` 保持最终检查用途，供回收脚本使用。脚本只校验已记录的部分字段，不能代替阅读测试、审查结论或批准原文。
 
 ## 6. Developer Review 衔接、Main 验收与最终报告
 
 - **严禁跳过 `REQUIRED` 的 Developer Review**：Gate 放行后，凡 `Developer Review: REQUIRED` 的任务（如涉及 UI 行为、共享契约、数据库迁移或 ADR 修订），Main **必须先停在 `Verdict: NEEDS DEVELOPER REVIEW`**，保留子 Agent Pane 并按 `core/references/developer-review.md` 呈现审阅摘要等待开发者明确批准；**未获批准前严禁调用 `cleanup-agents.sh` 或直接报 `Verdict: PASS`**；用户的批准须记入 `overview.md` 的 `Developer Review: REQUIRED — APPROVED`。
-- **最终验收与回收**：所有必需验收条件满足、Gate 放行且必要的 Developer Review 已获明确批准后，Main 同步更新 `overview.md` 最终状态（Verdict 与 `Models & Usage` 成本汇总以 `overview.md` 为准，聊天里的最终报告可精简），用 `scripts/cleanup-agents.sh --task-root <Task Root> --prefix <prefix>` 回收子 Agent 与 Pane（若已知仍有命名或细节待用户确认，可暂缓回收以保留子 Agent 缓存；脚本先运行 `gate.sh check`：状态未终态、缺 `Models & Usage`、`decisions.md` 仍有 `PROPOSED`、`REQUIRED` 未批准或 Review 已过期时退出码 `5` 且不回收），再输出最终报告（后续用户提交后要求「完善/关闭 Issue」时，先运行 `cleanup-agents.sh` 或 `gate.sh check` 确认 `gate_ok`——若提交钩子触发纯格式化改写先按 §5 快速通道刷新 `Fast Lane Tree`——再按项目 Tracker 规范一次完成勾选、评论、标签替换与关闭并做回读核验）：
+- **最终验收与回收**：
+  1. 所有必需验收条件满足、Gate 放行且必要的 Developer Review 已获明确批准后，Main 同步更新 `overview.md` 最终状态（Verdict 与 `Models & Usage` 成本汇总以 `overview.md` 为准，Main 自身用量可用 `node "$AGENT_WORKBENCH_ROOT/scripts/session-progress.mjs" --self` 查询，聊天里的最终报告可精简）。
+  2. 用 `scripts/cleanup-agents.sh --task-root <Task Root> --prefix <prefix>` 回收子 Agent 与 Pane（若已知仍有命名或细节待用户确认，可暂缓回收以保留子 Agent 缓存）。该脚本会先运行 `gate.sh check`，若状态未终态、缺 `Models & Usage`、`decisions.md` 仍有 `PROPOSED`、`REQUIRED` 未批准或 Review 已过期，则退出码 `5` 且不回收。
+  3. 回收后输出最终报告。若后续用户提交后要求「完善/关闭议题」，先运行 `cleanup-agents.sh` 或 `gate.sh check` 确认 `gate_ok`（提交钩子触发纯格式化改写时先按 §5 快速通道刷新 `Fast Lane Tree`），再按项目议题规范一次完成勾选、评论、标签替换与关闭并回读核对：
 
 ```text
 Verdict: PASS / BLOCKED / NEEDS USER DECISION / NEEDS DEVELOPER REVIEW
@@ -119,7 +129,7 @@ Acceptance 达成最终结论后，Main 按 `core/project-memory.md` §3 判断�
 
 ### 阶段预算
 
-Main 使用 `scripts/wait-agent.sh` 默认分段限时等待（单次约 4 分钟返回，见 `runtimes/README.md`），收到 `still_working`（退出码 `1`）时自动续等，在停滞（退出码 `3`）或触及费用上限（退出码 `4`）时立即介入：
+Main 使用 `scripts/wait-agent.sh` 默认分段等待（单次约 4 分钟返回，见 `runtimes/README.md`），收到 `still_working`（退出码 `1`）时自动续等，在停滞（退出码 `3`）或触及费用上限（退出码 `4`）时立即介入：
 
 | 阶段 | 参考预算 | 停滞介入信号 |
 |---|---:|---|

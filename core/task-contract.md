@@ -1,16 +1,18 @@
 # Task Contract 与交付物
 
-所有通过 Herdr → Pi 委派的子任务均使用本文件定义的**自包含 Task Contract（简称 Contract）**，由 Main 定义目标、模块边界与验收标准。
+所有通过 Herdr → Pi 委派的子任务均使用本文件定义的**独立完整 Task Contract（简称 Contract）**，由 Main 定义目标、模块边界与验收标准。
 
-## 1. 自包含 Contract 规则
+## 1. Contract 规则
 
-- **内联通用约束**：Contract 通过 `Role Rules` 字段携带当前角色的权限、工具规范与边界硬性限制；子 Agent 直接读取本 Contract 与目标源码开展工作，并按 Contract 指引参考目标产物模板（`core/templates/`）或专项 Reference（如引用排查时的 `core/references/code-retrieval.md`）。
+- **内嵌通用约束**：Contract 通过 `Role Rules` 字段携带当前角色的权限、工具规范与边界限制；子 Agent 直接读取本 Contract 与目标源码开展工作，并按 Contract 指引参考目标产物模板（`core/templates/`）或专项参考文档（如引用排查时的 `core/references/code-retrieval.md`）。
 - 每次新派发子 Agent 时填写 §2 模板字段，不适用的填 `N/A`。Main 须将本任务要求同步更新的文档（如 `AGENTS.md`、`GLOSSARY.md`、`docs/adr/`）一并列入 `Allowed Paths`。
+- 先写必须保持的行为和状态约束，再写实施步骤；逐项说明相关对象、成功与失败、操作前后的验证组合，不把未经验证的实现猜测写成强制步骤。
+- 派发前对照 `overview.md`、方案和 Contract 核对路径。子任务范围可以更小，但不得超出总范围，或与禁止路径重叠；「不改公共接口」是行为限制，不等于禁止修改接口所在的整个目录。
 - 子 Agent 遇到会实质改变产品行为、公共契约、超出 `Allowed Paths` 边界或工作区存在无关残留文件干扰检查的问题时，停下向 Main 报告证据与建议；模块内局部实现细节由子 Agent 自主完成。
 
 ### Skill
 
-- 默认按自包含 Contract 执行。确需专项 Skill（如视觉实现的 `ui-impl`）时，在 `Skills` 注明：`逻辑名称 | 绝对 Source Path | REQUIRED 或 OPTIONAL | 调用策略`。
+- 默认按 Contract 独立执行。确需专项 Skill（如视觉实现的 `ui-impl`）时，在 `Skills` 注明：`逻辑名称 | 绝对 Source Path | REQUIRED 或 OPTIONAL | 调用策略`。
 - 调用策略取 `HERDR_EXPLICIT_COMMAND`、`USER_COMMAND`、`RUNTIME_AUTO` 或 `CORE_FALLBACK`（映射见 `runtimes/README.md`）。
 - `REQUIRED` Skill 或其必要依赖不可用时，子 Agent 停止依赖它的工作并报 `BLOCKED`；`OPTIONAL` 不可用时记录原因并按常规方式继续。
 
@@ -27,32 +29,44 @@ Skills: <None | 名称 | 绝对 Source Path | REQUIRED/OPTIONAL | 调用策略>
 Goal: <一句话说明核心交付目标>
 Workspace:
   Repository Root: <仓库根目录绝对路径>
-  Base Commit: <任务开始时的 HEAD>
+  Base Commit: <任务开始时 git rev-parse HEAD 的完整输出，不用短提交号>
   Allowed Paths: <允许写入的模块/文档绝对路径 + 本子任务产物目录；Reviewer/Researcher 仅限本产物目录>
   Excluded Paths: <禁止触碰的目录或任务前既有脏文件；无则 None；已授权重叠脏文件附 workspace-baseline/ 快照路径>
-Context & Plan: <原始需求要点、已确认决策摘要，或 plan.md / decisions.md / 专项 Reference 的绝对路径与已知模块入口>
+Context & Plan: <原始需求要点、已确认决策摘要，或 plan.md / decisions.md / 专项参考文档的绝对路径与已知模块入口>
 Role Rules:
   - 仅在 Allowed Paths 内写入，保持 Excluded Paths 与无关目录原样；严禁擅自 mv / rm 仓库内无关目录，严禁执行 git commit / push / reset / checkout / stash。
-  - 读取源码与搜索符号优先使用原生 read（配合 offset/limit 成块读取）与 grep 工具，避免用大量 bash sed/cat 碎片化读文件；修改任何文件必须使用 edit / write 工具，严禁使用 python3 / node / sed -i 脚本改写文件。
+  - 读取源码与搜索符号优先使用原生 read（配合 offset/limit 成块读取）与 grep 工具，避免用大量 bash sed/cat 碎片化读文件；未知路径先用文件名检索定位、不猜路径，已读取的未修改片段不重复读取；修改任何文件必须使用 edit / write 工具，严禁使用 python3 / node / sed -i 脚本改写文件。
   - Reviewer 以 git diff <Base Commit> 与改动文件 read 为主，仅在跨文件调用链或边界不明时定点查询 codegraph。
+  - Researcher 拿到 Contract 指定问题的路径与行号证据后立即交付，不要扩大无关调用链读取；若接近上下文上限，先整理已有证据并写明未查明项。
   - 发现超出契约的公共接口歧义或环境残留干扰测试时停下报告 Main。
   - 停止源码修改后通过 "$AGENT_WORKBENCH_ROOT/scripts/run-check.sh" <绝对日志路径> <命令> 执行检查并保留真实退出码；检查后若再次修改源码，重跑受影响检查。
-Checks: <需执行的检查命令与绝对日志路径；只读角色填 Read-only（复用已有同版本日志）>
-Acceptance Criteria: <可观察、可验证的完成条件清单（含必要的文档/ADR 同步项）>
+Checks: <检查命令、预期执行的模块/用例与绝对日志路径；只读角色填 Read-only（复用已有同版本日志）>
+Acceptance Criteria: <可观察、可验证的完成条件、必须保持的行为约束与验证组合（含必要的文档/ADR 同步项）>
 Deliverables: <唯一主报告绝对路径（如 handoff.md，结构参考 core/templates/）及必要日志/截图目录>
 ```
 
 ### 定向修复消息（复用原 Session）
 
-未更换模型且原 Session 未逼近上下文窗口上限时，定向修复与定向复审直接向原 Agent 发送增量消息（或写简短 `fix-<n>.md`）：
+未更换模型且原 Session 未接近上下文窗口上限时，定向修复与定向复审直接向原 Agent 发送增量消息（或写简短 `fix-<n>.md`）：
 
 ```text
 基于原 Contract 执行第 <n>/2 轮定向修复（原边界与 Role Rules 继续有效，严禁用 python3/sed 改写源码）：
 Findings:
-  - <ID> | <File:Line> | <问题与预期行为（先跑定向单测验证修复）>
-Out of Scope: <本轮不处理的 P2 项>
+  - <ID> | <File:Line> | <问题与预期行为；能低成本复现时先保留失败测试，再修复至通过，否则说明原因和替代验证>
+Out of Scope: <本轮不处理项及其后续安排，沿用原 Finding ID>
 Checks: <停止修改源码后运行受影响单测与必要检查命令 + 新日志路径>
 Deliverables: 在 <handoff-fix-<n>.md 绝对路径> 记录本轮修改文件、测试退出码与残余风险。
+```
+
+### 定向复审消息（复用原 Reviewer Session）
+
+```text
+基于原 Contract 执行第 <n>/2 轮只读增量复审（禁止修改代码）：
+Targets: <本轮手写/修改的 handoff-fix-<n>.md 绝对路径、改动文件清单与最新检查日志路径>
+Unresolved Carryover: <上一轮尚未关闭的 Finding ID 与摘要，无则 None>
+Requirements:
+  - 核查原阻塞项是否已关闭且未引入回归；历史未关闭项保留原 Finding ID。
+  - 在 <review-fix-<n>.md 绝对路径> 分别列出「本轮发现」与「累计未解决项」，并给出结论（APPROVED / CONCERNS / CHANGES REQUESTED）。
 ```
 
 ### 视觉实现补充字段
@@ -78,7 +92,7 @@ Main 在 Intake 执行一次 `git status --porcelain -uall` 记录工作区基�
 |---|---|---|
 | `overview.md` | Main | 所有 L2 任务：顶部当前状态、基线摘要、`Developer Review` 要求、决策与产物链接、验证结论（`core/templates/overview.template.md`）；至少在首次派工与最终验收时同步状态 |
 | `decisions.md` | Main | 存在实质性产品/架构/契约取舍时创建（`core/templates/decisions.template.md`） |
-| `plan.md` | Main | 满足 `core/task-classification.md` §4 条件时创建 |
+| `plan.md` | Main | 满足 `core/task-classification.md` §4 条件时创建（无独立模板，结构见 `core/task-classification.md` §4） |
 | `subtasks/research/research.md` | Researcher | 独立 Research 任务或 L2 按需调研时创建 |
 | `subtasks/implement/handoff.md` | Implementer | 实现摘要、修改文件、Walkthrough、检查结果与残余风险（`core/templates/handoff.template.md`）；修复轮写 `handoff-fix-<n>.md` |
 | `subtasks/implement/visual-report.md` + `screenshots/` | Implementer | `Visual Implementation` 任务创建 |

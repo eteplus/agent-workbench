@@ -58,9 +58,9 @@ while IFS=$'\t' read -r name pane; do
   [[ -n $name ]] || continue
   if [[ -n $pane ]]; then
     "$herdr" pane send-keys "$pane" ctrl-c >/dev/null 2>&1 || true
-    "$herdr" pane close "$pane" >/dev/null 2>&1 || "$herdr" agent stop "$name" >/dev/null 2>&1 || true
+    "$herdr" pane close "$pane" >/dev/null 2>&1 || true
   else
-    "$herdr" agent stop "$name" >/dev/null 2>&1 || true
+    "$herdr" agent send-keys "$name" ctrl-c >/dev/null 2>&1 || true
   fi
   closed=$((closed + 1))
   printf 'closed agent=%s pane=%s\n' "$name" "${pane:-N/A}"
